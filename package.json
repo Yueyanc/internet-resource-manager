@@ -1,0 +1,36 @@
+{
+  "name": "internet-resource-manager",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": { "node": ">=24.15.0 <25", "pnpm": ">=12 <13" },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "pnpm lint:fix",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run && go test ./...",
+    "test:e2e": "playwright test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:go",
+    "check:go": "node scripts/check-go-format.mjs && go vet ./...",
+    "db:generate": "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate",
+    "db:migrate": "go run ./apps/server -migrate-only"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@playwright/test": "^1.58.0",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "globals": "^17.0.0",
+    "turbo": "^2.8.0",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^4.0.0"
+  }
+}

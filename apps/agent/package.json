@@ -1,0 +1,5 @@
+{
+  "name": "@irm/agent",
+  "private": true,
+  "scripts": { "build": "go -C ../.. build -trimpath -o dist/agent ./apps/agent" }
+}

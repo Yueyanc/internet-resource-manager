@@ -1,0 +1,24 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["go.mod", "go.sum", "tsconfig.base.json"],
+  "globalEnv": ["IRM_LISTEN_ADDR", "IRM_DATA_DIR", "IRM_API_TARGET"],
+  "tasks": {
+    "dev": { "cache": false, "persistent": true },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/internal/**/*.go", "$TURBO_ROOT$/db/**", "$TURBO_ROOT$/scripts/embed-web.mjs"],
+      "outputs": ["dist/**"]
+    },
+    "@irm/web#build": { "dependsOn": ["^build"], "outputs": ["dist/**", "$TURBO_ROOT$/internal/webui/assets/**"] },
+    "@irm/server#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/internal/**/*.go", "$TURBO_ROOT$/db/**"],
+      "outputs": ["$TURBO_ROOT$/dist/server"]
+    },
+    "@irm/agent#build": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/internal/collector/**", "$TURBO_ROOT$/internal/protocol/**"],
+      "outputs": ["$TURBO_ROOT$/dist/agent"]
+    },
+    "typecheck": { "dependsOn": ["^typecheck"] }
+  }
+}

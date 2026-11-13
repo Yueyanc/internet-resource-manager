@@ -1,0 +1,16 @@
+node_modules/
+.turbo/
+dist/
+**/dist/
+data/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+internal/webui/assets/*
+!internal/webui/assets/.gitkeep
+playwright-report/
+test-results/
+.DS_Store

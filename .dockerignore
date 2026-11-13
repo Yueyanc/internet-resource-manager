@@ -1,0 +1,13 @@
+.git
+node_modules
+**/node_modules
+.turbo
+**/.turbo
+dist
+**/dist
+data
+.env*
+test-results
+playwright-report
+internal/webui/assets/*
+!internal/webui/assets/.gitkeep
