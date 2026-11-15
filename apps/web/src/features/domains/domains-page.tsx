@@ -24,7 +24,7 @@ import { usePreferences } from '../../app/preferences-context';
 import { useWorkspace } from '../../layouts/workspace-context';
 import { errorMessage } from '../../shared/errors';
 import { QueryError } from '../../shared/feedback';
-import { CloudflareSyncModal } from './components/cloudflare-sync-modal';
+import { ProviderSyncModal } from '../integrations/provider-sync-modal';
 import { DomainAttentionCard } from './components/domain-attention-card';
 import { DomainBreakdownCard } from './components/domain-breakdown-card';
 import { DomainCard } from './components/domain-card';
@@ -141,10 +141,11 @@ export function DomainsPage() {
     },
   });
 
-  const cfConnections = useMemo(
-    () => (integrations.isSuccess ? integrations.data.items.filter(c => c.provider === 'cloudflare') : []),
-    [integrations.isSuccess, integrations.data],
-  );
+  const cfConnections = useMemo(() => {
+    if (!integrations.isSuccess) return [];
+    const allowed = new Set(['cloudflare', 'aliyun', 'tencent', 'porkbun', 'spaceship', 'digitalocean', 'vercel']);
+    return integrations.data.items.filter(c => allowed.has(c.provider));
+  }, [integrations.isSuccess, integrations.data]);
   const cfHasError = cfConnections.some(c => c.status === 'error');
 
   const available = domains.isSuccess;
@@ -328,7 +329,7 @@ export function DomainsPage() {
             onClick={() => setCfModalOpen(true)}
             disabled={!available}
           >
-            <span>{t('Cloudflare 同步')}</span>
+            <span>{t('云平台同步')}</span>
             {cfConnections.length > 0 && (
               <span className={`cf-live-dot ${cfHasError ? 'is-error' : ''}`} aria-hidden="true" />
             )}
@@ -567,8 +568,9 @@ export function DomainsPage() {
         />
       )}
 
-      <CloudflareSyncModal
+      <ProviderSyncModal
         open={cfModalOpen}
+        scope="domains"
         accounts={accountList}
         onClose={() => setCfModalOpen(false)}
       />

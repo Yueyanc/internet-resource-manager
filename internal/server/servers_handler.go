@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/Yueyanc/internet-resource-manager/internal/cloudsync"
 	"github.com/Yueyanc/internet-resource-manager/internal/ipaddr"
 	"github.com/Yueyanc/internet-resource-manager/internal/protocol"
 	"github.com/Yueyanc/internet-resource-manager/internal/serverhost"
@@ -13,53 +14,65 @@ import (
 )
 
 type serverResponse struct {
-	ID              string               `json:"id"`
-	PresetKey       string               `json:"presetKey"`
-	Name            string               `json:"name"`
-	Hostname        string               `json:"hostname"`
-	Provider        string               `json:"provider"`
-	Kind            string               `json:"kind"`
-	Status          string               `json:"status"`
-	Region          string               `json:"region"`
-	Datacenter      string               `json:"datacenter"`
-	OS              string               `json:"os"`
-	Arch            string               `json:"arch"`
-	CPUCores        int64                `json:"cpuCores"`
-	MemoryMB        int64                `json:"memoryMb"`
-	DiskGB          int64                `json:"diskGb"`
-	DiskType        string               `json:"diskType"`
-	BandwidthMbps   int64                `json:"bandwidthMbps"`
-	TrafficGB       int64                `json:"trafficGb"`
-	TrafficRule     string               `json:"trafficRule"`
-	TrafficResetDay int64                `json:"trafficResetDay"`
-	IPv4            string               `json:"ipv4"`
-	IPv6            string               `json:"ipv6"`
-	PrivateIP       string               `json:"privateIp"`
-	PortNote        string               `json:"portNote"`
-	SSHPort         int64                `json:"sshPort"`
-	SSHUser         string               `json:"sshUser"`
-	ConsoleURL      string               `json:"consoleUrl"`
-	SubscriptionID  string               `json:"subscriptionId"`
-	AccountID       string               `json:"accountId"`
-	ExpireDate      string               `json:"expireDate"`
-	DomainIDs       []string             `json:"domainIds"`
-	IPIDs           []string             `json:"ipIds"`
-	Tags            []string             `json:"tags"`
-	Notes           string               `json:"notes"`
-	Archived        bool                 `json:"archived"`
-	Telemetry       serverhost.Telemetry `json:"telemetry"`
-	CreatedAt       string               `json:"createdAt"`
-	UpdatedAt       string               `json:"updatedAt"`
+	ID                   string                        `json:"id"`
+	PresetKey            string                        `json:"presetKey"`
+	Name                 string                        `json:"name"`
+	Hostname             string                        `json:"hostname"`
+	Provider             string                        `json:"provider"`
+	Kind                 string                        `json:"kind"`
+	Status               string                        `json:"status"`
+	Region               string                        `json:"region"`
+	Datacenter           string                        `json:"datacenter"`
+	OS                   string                        `json:"os"`
+	Arch                 string                        `json:"arch"`
+	CPUCores             int64                         `json:"cpuCores"`
+	MemoryMB             int64                         `json:"memoryMb"`
+	DiskGB               int64                         `json:"diskGb"`
+	DiskType             string                        `json:"diskType"`
+	BandwidthMbps        int64                         `json:"bandwidthMbps"`
+	TrafficGB            int64                         `json:"trafficGb"`
+	TrafficRule          string                        `json:"trafficRule"`
+	TrafficResetDay      int64                         `json:"trafficResetDay"`
+	IPv4                 string                        `json:"ipv4"`
+	IPv6                 string                        `json:"ipv6"`
+	PrivateIP            string                        `json:"privateIp"`
+	PortNote             string                        `json:"portNote"`
+	SSHPort              int64                         `json:"sshPort"`
+	SSHUser              string                        `json:"sshUser"`
+	ConsoleURL           string                        `json:"consoleUrl"`
+	SubscriptionID       string                        `json:"subscriptionId"`
+	AccountID            string                        `json:"accountId"`
+	ExpireDate           string                        `json:"expireDate"`
+	DomainIDs            []string                      `json:"domainIds"`
+	IPIDs                []string                      `json:"ipIds"`
+	Tags                 []string                      `json:"tags"`
+	Notes                string                        `json:"notes"`
+	Archived             bool                          `json:"archived"`
+	ProviderConnectionID string                        `json:"providerConnectionId"`
+	ProviderMeta         *cloudsync.ServerProviderMeta `json:"providerMeta,omitempty"`
+	Telemetry            serverhost.Telemetry          `json:"telemetry"`
+	CreatedAt            string                        `json:"createdAt"`
+	UpdatedAt            string                        `json:"updatedAt"`
 }
 
 func serverDTO(rec storage.ServerRecord) serverResponse {
 	v := rec.Server
-	var subID, accID string
+	var subID, accID, connID string
 	if v.SubscriptionID.Valid {
 		subID = v.SubscriptionID.String
 	}
 	if v.AccountID.Valid {
 		accID = v.AccountID.String
+	}
+	if v.ProviderConnectionID.Valid {
+		connID = v.ProviderConnectionID.String
+	}
+	var providerMeta *cloudsync.ServerProviderMeta
+	if v.ProviderMetaJson != "" && v.ProviderMetaJson != "{}" {
+		var parsed cloudsync.ServerProviderMeta
+		if err := json.Unmarshal([]byte(v.ProviderMetaJson), &parsed); err == nil && (parsed.Provider != "" || parsed.TrafficTotalBytes > 0 || parsed.LastSeenAt != "") {
+			providerMeta = &parsed
+		}
 	}
 	var tags []string
 	if v.TagsJson != "" {
@@ -83,43 +96,45 @@ func serverDTO(rec storage.ServerRecord) serverResponse {
 		tel.Containers = []protocol.ContainerSummary{}
 	}
 	return serverResponse{
-		ID:              v.ID,
-		PresetKey:       v.PresetKey,
-		Name:            v.Name,
-		Hostname:        v.Hostname,
-		Provider:        v.Provider,
-		Kind:            v.Kind,
-		Status:          v.Status,
-		Region:          v.Region,
-		Datacenter:      v.Datacenter,
-		OS:              v.Os,
-		Arch:            v.Arch,
-		CPUCores:        v.CpuCores,
-		MemoryMB:        v.MemoryMb,
-		DiskGB:          v.DiskGb,
-		DiskType:        v.DiskType,
-		BandwidthMbps:   v.BandwidthMbps,
-		TrafficGB:       v.TrafficGb,
-		TrafficRule:     v.TrafficRule,
-		TrafficResetDay: v.TrafficResetDay,
-		IPv4:            v.Ipv4,
-		IPv6:            v.Ipv6,
-		PrivateIP:       v.PrivateIp,
-		PortNote:        v.PortNote,
-		SSHPort:         v.SshPort,
-		SSHUser:         v.SshUser,
-		ConsoleURL:      v.ConsoleUrl,
-		SubscriptionID:  subID,
-		AccountID:       accID,
-		ExpireDate:      v.ExpireDate,
-		DomainIDs:       doms,
-		IPIDs:           ips,
-		Tags:            tags,
-		Notes:           v.Notes,
-		Archived:        v.Archived != 0,
-		Telemetry:       tel,
-		CreatedAt:       v.CreatedAt,
-		UpdatedAt:       v.UpdatedAt,
+		ID:                   v.ID,
+		PresetKey:            v.PresetKey,
+		Name:                 v.Name,
+		Hostname:             v.Hostname,
+		Provider:             v.Provider,
+		Kind:                 v.Kind,
+		Status:               v.Status,
+		Region:               v.Region,
+		Datacenter:           v.Datacenter,
+		OS:                   v.Os,
+		Arch:                 v.Arch,
+		CPUCores:             v.CpuCores,
+		MemoryMB:             v.MemoryMb,
+		DiskGB:               v.DiskGb,
+		DiskType:             v.DiskType,
+		BandwidthMbps:        v.BandwidthMbps,
+		TrafficGB:            v.TrafficGb,
+		TrafficRule:          v.TrafficRule,
+		TrafficResetDay:      v.TrafficResetDay,
+		IPv4:                 v.Ipv4,
+		IPv6:                 v.Ipv6,
+		PrivateIP:            v.PrivateIp,
+		PortNote:             v.PortNote,
+		SSHPort:              v.SshPort,
+		SSHUser:              v.SshUser,
+		ConsoleURL:           v.ConsoleUrl,
+		SubscriptionID:       subID,
+		AccountID:            accID,
+		ExpireDate:           v.ExpireDate,
+		DomainIDs:            doms,
+		IPIDs:                ips,
+		Tags:                 tags,
+		Notes:                v.Notes,
+		Archived:             v.Archived != 0,
+		ProviderConnectionID: connID,
+		ProviderMeta:         providerMeta,
+		Telemetry:            tel,
+		CreatedAt:            v.CreatedAt,
+		UpdatedAt:            v.UpdatedAt,
 	}
 }
 

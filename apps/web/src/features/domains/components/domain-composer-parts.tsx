@@ -7,6 +7,7 @@ import {
   type DomainStatus,
   type IpNode,
   lookupDomainPreview,
+  type ProviderConnection,
   type ServerHost,
   type Subscription,
   type SubscriptionInput,
@@ -53,6 +54,11 @@ import { type CSSProperties, useMemo, useState } from 'react';
 import type { MessageKey } from '../../../app/messages';
 import { usePreferences } from '../../../app/preferences-context';
 import { errorMessage } from '../../../shared/errors';
+import {
+  type CloudSyncProviderKey,
+  PROVIDER_BRIEFS,
+  resolveDomainSyncProvider,
+} from '../../integrations/provider-matching';
 import { ipDisplayTitle } from '../../ips/utils/ip-metrics';
 import { AccountQuickDropdown } from '../../subscriptions/components/subscription-account-fields';
 import { cycles } from '../../subscriptions/utils/subscription-metrics';
@@ -230,9 +236,8 @@ export function DomainPropertySheet({
   isEditing = false,
   initialAccountId,
   initialOpenExtras = [],
-  cloudflareConnectedCount = 0,
-  cloudflareHasError = false,
-  onOpenCloudflareSync,
+  providerConnections = [],
+  onOpenProviderSync,
   submitting,
   onCancel,
 }: {
@@ -247,9 +252,8 @@ export function DomainPropertySheet({
   isEditing?: boolean;
   initialAccountId?: string;
   initialOpenExtras?: DomainExtraKey[];
-  cloudflareConnectedCount?: number;
-  cloudflareHasError?: boolean;
-  onOpenCloudflareSync?: () => void;
+  providerConnections?: ProviderConnection[];
+  onOpenProviderSync?: (provider: CloudSyncProviderKey) => void;
   submitting: boolean;
   onCancel: () => void;
 }) {
@@ -328,11 +332,23 @@ export function DomainPropertySheet({
     }),
     [explicitPreset, presetKey, watchedRegistrar, watchedDns, watchedName],
   );
-  const combinedProviderText = `${watchedRegistrar} ${watchedDns}`;
-  const isCloudflareSelected = presetKey === 'cloudflare'
-    || inferredPreset?.key === 'cloudflare'
-    || combinedProviderText.toLowerCase().includes('cloudflare')
-    || combinedProviderText.includes('橙云');
+  const syncProviderKey = useMemo(
+    () => resolveDomainSyncProvider({
+      presetKey: presetKey || inferredPreset?.key,
+      registrar: watchedRegistrar,
+      dnsProvider: watchedDns,
+    }),
+    [presetKey, inferredPreset?.key, watchedRegistrar, watchedDns],
+  );
+  const matchedConnections = useMemo(
+    () => (syncProviderKey ? providerConnections.filter(c => c.provider === syncProviderKey) : []),
+    [providerConnections, syncProviderKey],
+  );
+  const matchedHasError = matchedConnections.some(c => c.status === 'error');
+  const syncProviderBrief = syncProviderKey ? PROVIDER_BRIEFS[syncProviderKey] : undefined;
+  const syncProviderLabel = syncProviderBrief
+    ? (locale === 'en-US' ? syncProviderBrief.en : syncProviderBrief.zh)
+    : '';
 
   const toggleExtra = (key: DomainExtraKey) => {
     setOpenExtras((prev) => {
@@ -454,34 +470,44 @@ export function DomainPropertySheet({
         </div>
       </div>
 
-      {onOpenCloudflareSync && isCloudflareSelected && (
+      {onOpenProviderSync && syncProviderKey && (
         <div className="cf-composer-callout">
           <div className="cf-composer-callout-meta">
-            <span className="cf-composer-callout-icon" aria-hidden="true">
+            <span
+              className="cf-composer-callout-icon"
+              style={syncProviderBrief ? { '--callout-tint': syncProviderBrief.color } as CSSProperties : undefined}
+              aria-hidden="true"
+            >
               <Cloud size={16} />
             </span>
             <div className="cf-composer-callout-copy">
               <strong>
-                {t(cloudflareConnectedCount > 0 ? '已接入 Cloudflare 只读同步' : '支持 Cloudflare 只读自动同步')}
+                {t(
+                  matchedConnections.length > 0
+                    ? '已接入 {provider} 只读同步'
+                    : '支持 {provider} 只读自动同步',
+                  { provider: syncProviderLabel },
+                )}
               </strong>
               <p>
                 {t(
-                  cloudflareConnectedCount > 0
-                    ? '无需逐个手填，可一键从已绑定的 Cloudflare 账号拉取最新域名、到期日与解析拓扑。'
-                    : '无需逐个手填，通过只读 API 令牌一键批量导入名下托管域名、到期日与服务器关联。',
+                  matchedConnections.length > 0
+                    ? '无需逐个手填，可一键从已绑定的 {provider} 账号拉取最新域名、到期日与解析拓扑。'
+                    : '无需逐个手填，通过 {provider} 只读鉴权一键批量导入名下托管域名、到期日与服务器关联。',
+                  { provider: syncProviderLabel },
                 )}
               </p>
             </div>
           </div>
           <Button
             size="small"
-            onClick={onOpenCloudflareSync}
+            onClick={() => onOpenProviderSync(syncProviderKey)}
             className="cf-sync-trigger-btn is-compact"
             icon={<Cloud size={13} />}
           >
-            <span>{t('Cloudflare 同步')}</span>
-            {cloudflareConnectedCount > 0 && (
-              <span className={`cf-live-dot ${cloudflareHasError ? 'is-error' : ''}`} />
+            <span>{t('{provider} 同步', { provider: syncProviderLabel })}</span>
+            {matchedConnections.length > 0 && (
+              <span className={`cf-live-dot ${matchedHasError ? 'is-error' : ''}`} />
             )}
           </Button>
         </div>

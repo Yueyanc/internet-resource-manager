@@ -19,14 +19,18 @@ test('create domain with RDAP auto-fill, inspect Cloudflare sync modal, edit/arc
   await page.goto('/domains');
   await expect(page.getByRole('heading', { name: /域名/ })).toBeVisible();
 
-  // 1. Open Cloudflare Read-Only Sync Modal and verify prefilled template link & scopes
-  await page.getByRole('button', { name: 'Cloudflare 同步' }).click();
-  const cfDialog = page.getByRole('dialog', { name: /Cloudflare 只读资产同步/ });
+  // 1. Open unified Cloud Domain & DNS Sync Modal and verify Cloudflare + Porkbun + Aliyun tabs
+  await page.getByRole('button', { name: '云平台同步' }).click();
+  const cfDialog = page.getByRole('dialog', { name: /云平台域名与解析同步/ });
   await expect(cfDialog).toBeVisible();
   const templateLink = cfDialog.getByRole('link', { name: '一键打开 Cloudflare 只读令牌模板' });
   await expect(templateLink).toHaveAttribute('href', /dash\.cloudflare\.com\/profile\/api-tokens/);
   await expect(cfDialog).toContainText('Zone · Read');
   await expect(cfDialog).toContainText('DNS · Read');
+  await cfDialog.getByRole('tab', { name: 'Porkbun' }).click();
+  await expect(cfDialog.getByLabel('Porkbun API Key')).toBeVisible();
+  await cfDialog.getByRole('tab', { name: '阿里云' }).click();
+  await expect(cfDialog.getByLabel('RAM AccessKey ID')).toBeVisible();
   await cfDialog.getByRole('button', { name: '取消', exact: true }).click();
   await expect(cfDialog).not.toBeVisible();
 
@@ -53,8 +57,13 @@ test('create domain with RDAP auto-fill, inspect Cloudflare sync modal, edit/arc
   await page.getByRole('button', { name: '新建域名', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建域名' });
 
-  // Before selecting Cloudflare, inline Cloudflare Sync callout is hidden
+  // Before selecting a supported provider preset, inline Sync callout is hidden
   await expect(modal.getByRole('button', { name: 'Cloudflare 同步' })).toHaveCount(0);
+
+  // Selecting Porkbun preset surfaces inline Porkbun Sync callout
+  await modal.getByRole('button', { name: '更换图标' }).click();
+  await page.locator('.preset-popover-item').filter({ hasText: 'Porkbun' }).first().click();
+  await expect(modal.getByText('支持 Porkbun 只读自动同步')).toBeVisible();
 
   // Selecting Cloudflare preset surfaces inline Cloudflare Sync callout
   await modal.getByRole('button', { name: '更换图标' }).click();
@@ -66,7 +75,7 @@ test('create domain with RDAP auto-fill, inspect Cloudflare sync modal, edit/arc
   const inlineCfDialog = page.getByRole('dialog', { name: /Cloudflare 只读资产同步/ });
   await expect(inlineCfDialog).toBeVisible();
   await expect(inlineCfDialog.getByRole('link', { name: '一键打开 Cloudflare 只读令牌模板' })).toBeVisible();
-  await inlineCfDialog.getByRole('button', { name: '返回手动录入' }).click();
+  await inlineCfDialog.getByRole('button', { name: '返回手动录入' }).first().click();
   await expect(modal).toBeVisible();
 
   await modal.getByLabel('域名', { exact: true }).fill(`https://${domain}/docs`);

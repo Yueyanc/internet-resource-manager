@@ -92,6 +92,8 @@ function makeServer(overrides: Partial<ServerHost> = {}): ServerHost {
     tags: ['反代'],
     notes: '',
     archived: false,
+    providerConnectionId: '',
+    providerMeta: null,
     telemetry: makeTelemetry(),
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -249,5 +251,27 @@ describe('server metrics, smart endpoint, and zero-callback probe helpers', () =
     expect(metrics.linkedSubCount).toBe(1);
     expect(metrics.monthlySpend).toBeCloseTo(21.6, 5);
     expect(metrics.totalCores).toBe(7);
+  });
+
+  it('incorporates providerMeta official monthly billing traffic when agent counter is absent', () => {
+    const bwh = makeServer({
+      trafficGb: 1000,
+      trafficRule: 'both',
+      providerConnectionId: 'conn-bwh',
+      providerMeta: {
+        provider: 'bandwagon',
+        externalId: 'veid-10001',
+        plan: 'CN2 GIA-E 20G',
+        trafficUsedBytes: 250 * 1024 ** 3,
+        trafficTotalBytes: 1000 * 1024 ** 3,
+        trafficResetAt: '2026-12-01T00:00:00Z',
+        lastSeenAt: '',
+        clientVersion: '',
+        suspended: false,
+      },
+    });
+    const usage = computeTrafficUsage(bwh);
+    expect(usage.usedBytes).toBe(250 * 1024 ** 3);
+    expect(usage.percent).toBe(25);
   });
 });

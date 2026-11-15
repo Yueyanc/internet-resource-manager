@@ -61,7 +61,7 @@ func (q *Queries) DeleteServerDomains(ctx context.Context, serverID string) erro
 }
 
 const getServer = `-- name: GetServer :one
-SELECT id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at FROM servers WHERE id = ?
+SELECT id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at, provider_connection_id, external_id, provider_meta_json FROM servers WHERE id = ?
 `
 
 func (q *Queries) GetServer(ctx context.Context, id string) (Server, error) {
@@ -102,6 +102,9 @@ func (q *Queries) GetServer(ctx context.Context, id string) (Server, error) {
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
+		&i.ProviderMetaJson,
 	)
 	return i, err
 }
@@ -240,7 +243,7 @@ func (q *Queries) ListServerIPsByServer(ctx context.Context, serverID sql.NullSt
 }
 
 const listServers = `-- name: ListServers :many
-SELECT id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at FROM servers
+SELECT id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at, provider_connection_id, external_id, provider_meta_json FROM servers
 ORDER BY archived, CASE status WHEN 'active' THEN 0 WHEN 'maintenance' THEN 1 WHEN 'standby' THEN 2 ELSE 3 END, name, id
 `
 
@@ -288,6 +291,9 @@ func (q *Queries) ListServers(ctx context.Context) ([]Server, error) {
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProviderConnectionID,
+			&i.ExternalID,
+			&i.ProviderMetaJson,
 		); err != nil {
 			return nil, err
 		}
@@ -352,7 +358,7 @@ ON CONFLICT(id) DO UPDATE SET
     notes = excluded.notes,
     archived = excluded.archived,
     updated_at = excluded.updated_at
-RETURNING id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at
+RETURNING id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at, provider_connection_id, external_id, provider_meta_json
 `
 
 type SaveServerParams struct {
@@ -465,6 +471,150 @@ func (q *Queries) SaveServer(ctx context.Context, arg SaveServerParams) (Server,
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
+		&i.ProviderMetaJson,
+	)
+	return i, err
+}
+
+const updateServerSyncMeta = `-- name: UpdateServerSyncMeta :one
+UPDATE servers
+SET preset_key = ?,
+    name = ?,
+    hostname = ?,
+    provider = ?,
+    kind = ?,
+    status = ?,
+    region = ?,
+    datacenter = ?,
+    os = ?,
+    arch = ?,
+    cpu_cores = ?,
+    memory_mb = ?,
+    disk_gb = ?,
+    disk_type = ?,
+    bandwidth_mbps = ?,
+    traffic_gb = ?,
+    traffic_reset_day = ?,
+    ipv4 = ?,
+    ipv6 = ?,
+    private_ip = ?,
+    console_url = ?,
+    account_id = ?,
+    expire_date = ?,
+    tags_json = ?,
+    provider_connection_id = ?,
+    external_id = ?,
+    provider_meta_json = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING id, preset_key, name, hostname, provider, kind, status, region, datacenter, os, arch, cpu_cores, memory_mb, disk_gb, disk_type, bandwidth_mbps, traffic_gb, traffic_rule, traffic_reset_day, ipv4, ipv6, private_ip, port_note, ssh_port, ssh_user, console_url, subscription_id, account_id, expire_date, tags_json, notes, archived, created_at, updated_at, provider_connection_id, external_id, provider_meta_json
+`
+
+type UpdateServerSyncMetaParams struct {
+	PresetKey            string         `json:"preset_key"`
+	Name                 string         `json:"name"`
+	Hostname             string         `json:"hostname"`
+	Provider             string         `json:"provider"`
+	Kind                 string         `json:"kind"`
+	Status               string         `json:"status"`
+	Region               string         `json:"region"`
+	Datacenter           string         `json:"datacenter"`
+	Os                   string         `json:"os"`
+	Arch                 string         `json:"arch"`
+	CpuCores             int64          `json:"cpu_cores"`
+	MemoryMb             int64          `json:"memory_mb"`
+	DiskGb               int64          `json:"disk_gb"`
+	DiskType             string         `json:"disk_type"`
+	BandwidthMbps        int64          `json:"bandwidth_mbps"`
+	TrafficGb            int64          `json:"traffic_gb"`
+	TrafficResetDay      int64          `json:"traffic_reset_day"`
+	Ipv4                 string         `json:"ipv4"`
+	Ipv6                 string         `json:"ipv6"`
+	PrivateIp            string         `json:"private_ip"`
+	ConsoleUrl           string         `json:"console_url"`
+	AccountID            sql.NullString `json:"account_id"`
+	ExpireDate           string         `json:"expire_date"`
+	TagsJson             string         `json:"tags_json"`
+	ProviderConnectionID sql.NullString `json:"provider_connection_id"`
+	ExternalID           string         `json:"external_id"`
+	ProviderMetaJson     string         `json:"provider_meta_json"`
+	UpdatedAt            string         `json:"updated_at"`
+	ID                   string         `json:"id"`
+}
+
+func (q *Queries) UpdateServerSyncMeta(ctx context.Context, arg UpdateServerSyncMetaParams) (Server, error) {
+	row := q.db.QueryRowContext(ctx, updateServerSyncMeta,
+		arg.PresetKey,
+		arg.Name,
+		arg.Hostname,
+		arg.Provider,
+		arg.Kind,
+		arg.Status,
+		arg.Region,
+		arg.Datacenter,
+		arg.Os,
+		arg.Arch,
+		arg.CpuCores,
+		arg.MemoryMb,
+		arg.DiskGb,
+		arg.DiskType,
+		arg.BandwidthMbps,
+		arg.TrafficGb,
+		arg.TrafficResetDay,
+		arg.Ipv4,
+		arg.Ipv6,
+		arg.PrivateIp,
+		arg.ConsoleUrl,
+		arg.AccountID,
+		arg.ExpireDate,
+		arg.TagsJson,
+		arg.ProviderConnectionID,
+		arg.ExternalID,
+		arg.ProviderMetaJson,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i Server
+	err := row.Scan(
+		&i.ID,
+		&i.PresetKey,
+		&i.Name,
+		&i.Hostname,
+		&i.Provider,
+		&i.Kind,
+		&i.Status,
+		&i.Region,
+		&i.Datacenter,
+		&i.Os,
+		&i.Arch,
+		&i.CpuCores,
+		&i.MemoryMb,
+		&i.DiskGb,
+		&i.DiskType,
+		&i.BandwidthMbps,
+		&i.TrafficGb,
+		&i.TrafficRule,
+		&i.TrafficResetDay,
+		&i.Ipv4,
+		&i.Ipv6,
+		&i.PrivateIp,
+		&i.PortNote,
+		&i.SshPort,
+		&i.SshUser,
+		&i.ConsoleUrl,
+		&i.SubscriptionID,
+		&i.AccountID,
+		&i.ExpireDate,
+		&i.TagsJson,
+		&i.Notes,
+		&i.Archived,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
+		&i.ProviderMetaJson,
 	)
 	return i, err
 }

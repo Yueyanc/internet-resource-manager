@@ -14,6 +14,7 @@ import (
 
 	"github.com/Yueyanc/internet-resource-manager/internal/cloudsync"
 	"github.com/Yueyanc/internet-resource-manager/internal/domainname"
+	"github.com/Yueyanc/internet-resource-manager/internal/ipaddr"
 	"github.com/Yueyanc/internet-resource-manager/internal/storage/queries"
 )
 
@@ -22,6 +23,10 @@ type SyncStats struct {
 	DomainsImported  int `json:"domainsImported"`
 	DomainsUpdated   int `json:"domainsUpdated"`
 	RecordsSynced    int `json:"recordsSynced"`
+	ServersImported  int `json:"serversImported"`
+	ServersUpdated   int `json:"serversUpdated"`
+	IPsImported      int `json:"ipsImported"`
+	IPsUpdated       int `json:"ipsUpdated"`
 	ServerLinksAdded int `json:"serverLinksAdded"`
 	IPLinksAdded     int `json:"ipLinksAdded"`
 	TunnelsTotal     int `json:"tunnelsTotal"`
@@ -48,15 +53,21 @@ func (s *Store) GetProviderConnection(ctx context.Context, id string) (queries.P
 	return row, err
 }
 
-func (s *Store) CreateCloudflareConnection(
+func (s *Store) CreateProviderConnection(
 	ctx context.Context,
+	provider string,
 	label string,
+	defaultLabel string,
 	accountID string,
-	apiToken string,
-	verify cloudsync.VerifySummary,
+	tokenHint string,
+	creds cloudsync.Credentials,
+	scopes []string,
+	accountNames []string,
+	initialStats SyncStats,
 ) (queries.ProviderConnection, error) {
 	id := rand.Text()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	cleanProvider := strings.ToLower(strings.TrimSpace(provider))
 
 	accountID = strings.TrimSpace(accountID)
 	if accountID != "" {
@@ -68,35 +79,36 @@ func (s *Store) CreateCloudflareConnection(
 		}
 	}
 
-	aad := id + ":cloudflare"
-	ciphertext, nonce, err := s.keyRing.SealJSON(aad, cloudsync.CloudflareCredentials{APIToken: apiToken})
+	aad := id + ":" + cleanProvider
+	ciphertext, nonce, err := s.keyRing.SealJSON(aad, creds)
 	if err != nil {
 		return queries.ProviderConnection{}, err
 	}
 
-	extName := strings.Join(verify.AccountNames, ", ")
+	extName := strings.Join(accountNames, ", ")
 	cleanLabel := strings.TrimSpace(label)
 	if cleanLabel == "" {
-		if len(verify.AccountNames) > 0 {
-			cleanLabel = verify.AccountNames[0]
+		if len(accountNames) > 0 && strings.TrimSpace(accountNames[0]) != "" {
+			cleanLabel = strings.TrimSpace(accountNames[0])
+		} else if strings.TrimSpace(defaultLabel) != "" {
+			cleanLabel = strings.TrimSpace(defaultLabel)
 		} else {
-			cleanLabel = "Cloudflare"
+			cleanLabel = cleanProvider
 		}
 	}
 
-	scopes := verify.Scopes
 	if scopes == nil {
 		scopes = []string{}
 	}
 	scopesJSON, _ := json.Marshal(scopes)
-	statsJSON, _ := json.Marshal(SyncStats{ZonesTotal: verify.ZonesCount})
+	statsJSON, _ := json.Marshal(initialStats)
 
 	return s.queries.SaveProviderConnection(ctx, queries.SaveProviderConnectionParams{
 		ID:                  id,
-		Provider:            "cloudflare",
+		Provider:            cleanProvider,
 		Label:               cleanLabel,
 		AccountID:           nullString(accountID),
-		TokenHint:           cloudsync.MaskSecret(apiToken),
+		TokenHint:           tokenHint,
 		SecretCiphertext:    ciphertext,
 		SecretNonce:         nonce,
 		ScopesJson:          string(scopesJSON),
@@ -110,12 +122,41 @@ func (s *Store) CreateCloudflareConnection(
 	})
 }
 
-func (s *Store) DecryptCloudflareToken(conn queries.ProviderConnection) (string, error) {
-	var creds cloudsync.CloudflareCredentials
+func (s *Store) CreateCloudflareConnection(
+	ctx context.Context,
+	label string,
+	accountID string,
+	apiToken string,
+	verify cloudsync.VerifySummary,
+) (queries.ProviderConnection, error) {
+	return s.CreateProviderConnection(
+		ctx,
+		"cloudflare",
+		label,
+		"Cloudflare",
+		accountID,
+		cloudsync.MaskSecret(apiToken),
+		cloudsync.Credentials{"apiToken": apiToken},
+		verify.Scopes,
+		verify.AccountNames,
+		SyncStats{ZonesTotal: verify.ZonesCount},
+	)
+}
+
+func (s *Store) DecryptProviderCredentials(conn queries.ProviderConnection) (cloudsync.Credentials, error) {
+	var creds cloudsync.Credentials
 	if err := s.keyRing.OpenJSON(conn.ID+":"+conn.Provider, conn.SecretCiphertext, conn.SecretNonce, &creds); err != nil {
+		return nil, err
+	}
+	return creds, nil
+}
+
+func (s *Store) DecryptCloudflareToken(conn queries.ProviderConnection) (string, error) {
+	creds, err := s.DecryptProviderCredentials(conn)
+	if err != nil {
 		return "", err
 	}
-	return creds.APIToken, nil
+	return creds.Get("apiToken"), nil
 }
 
 func (s *Store) RecordProviderSyncError(ctx context.Context, conn queries.ProviderConnection, syncErr error) (queries.ProviderConnection, error) {
@@ -168,18 +209,103 @@ func zoneMatchesHostname(zoneName, hostname string) bool {
 	return h == z || strings.HasSuffix(h, "."+z)
 }
 
+func providerRegistrarDisplayName(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "cloudflare":
+		return "Cloudflare"
+	case "porkbun":
+		return "Porkbun"
+	case "spaceship":
+		return "Spaceship"
+	case "aliyun":
+		return "阿里云 (万网)"
+	case "tencent":
+		return "腾讯云"
+	case "vercel":
+		return "Vercel"
+	case "digitalocean":
+		return "DigitalOcean"
+	default:
+		return provider
+	}
+}
+
+func providerDefaultPresetKey(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "cloudflare":
+		return "cloudflare"
+	case "porkbun":
+		return "porkbun"
+	case "spaceship":
+		return "spaceship"
+	case "aliyun":
+		return "aliyun_wanwang"
+	case "tencent":
+		return "tencent_dnspod"
+	case "vercel":
+		return "vercel_domains"
+	case "digitalocean":
+		return "digitalocean_dns"
+	default:
+		return ""
+	}
+}
+
+func mergeTagsLimited(existingJSON string, incoming []string) string {
+	var tags []string
+	if existingJSON != "" {
+		_ = json.Unmarshal([]byte(existingJSON), &tags)
+	}
+	for _, t := range incoming {
+		clean := strings.TrimSpace(t)
+		if clean != "" && !slices.Contains(tags, clean) && len(tags) < 20 {
+			tags = append(tags, clean)
+		}
+	}
+	if tags == nil {
+		tags = []string{}
+	}
+	raw, _ := json.Marshal(tags)
+	return string(raw)
+}
+
 func (s *Store) ReconcileCloudflareSnapshot(
 	ctx context.Context,
 	conn queries.ProviderConnection,
 	snap cloudsync.Snapshot,
 	domainLookuper domainname.Lookuper,
 ) (queries.ProviderConnection, SyncStats, error) {
-	// 1. Pre-load active Servers & IPs to build fast IP / Hostname topology lookup maps
+	return s.ReconcileUnifiedSnapshot(ctx, conn, cloudsync.UnifiedSnapshot{
+		Provider:     "cloudflare",
+		AccountNames: snap.AccountNames,
+		Scopes:       snap.Scopes,
+		Zones:        snap.Zones,
+		Registrar:    snap.Registrar,
+		Tunnels:      snap.Tunnels,
+		Pages:        snap.Pages,
+	}, domainLookuper)
+}
+
+func (s *Store) ReconcileUnifiedSnapshot(
+	ctx context.Context,
+	conn queries.ProviderConnection,
+	snap cloudsync.UnifiedSnapshot,
+	domainLookuper domainname.Lookuper,
+) (queries.ProviderConnection, SyncStats, error) {
+	provider := strings.ToLower(strings.TrimSpace(snap.Provider))
+	if provider == "" {
+		provider = strings.ToLower(strings.TrimSpace(conn.Provider))
+	}
+
 	serverRows, err := s.queries.ListServers(ctx)
 	if err != nil {
 		return conn, SyncStats{}, err
 	}
 	ipRows, err := s.queries.ListIPs(ctx)
+	if err != nil {
+		return conn, SyncStats{}, err
+	}
+	ipAccountLinks, err := s.queries.ListAllIPAccounts(ctx)
 	if err != nil {
 		return conn, SyncStats{}, err
 	}
@@ -193,8 +319,6 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		existingByName[strings.ToLower(d.Name)] = d
 	}
 
-	serverIDsByIP := make(map[string][]string)
-	serverIDsByHost := make(map[string][]string)
 	appendUnique := func(m map[string][]string, k, v string) {
 		if k == "" || v == "" {
 			return
@@ -204,50 +328,81 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		}
 	}
 
-	for _, srv := range serverRows {
+	serverByID := make(map[string]queries.Server, len(serverRows))
+	serverByExtID := make(map[string]string)
+	serverIDsByIP := make(map[string][]string)
+	serverIDsByHost := make(map[string][]string)
+	serverIDsByShortName := make(map[string][]string)
+
+	indexServer := func(srv queries.Server) {
+		serverByID[srv.ID] = srv
+		if srv.ExternalID != "" {
+			serverByExtID[srv.ExternalID] = srv.ID
+		}
 		if srv.Archived != 0 {
-			continue
+			return
 		}
 		appendUnique(serverIDsByIP, normalizeAddrKey(srv.Ipv4), srv.ID)
 		appendUnique(serverIDsByIP, normalizeAddrKey(srv.Ipv6), srv.ID)
 		appendUnique(serverIDsByIP, normalizeAddrKey(srv.PrivateIp), srv.ID)
 		host := strings.Trim(strings.ToLower(strings.TrimSpace(srv.Hostname)), ".")
-		if strings.Contains(host, ".") {
+		if host != "" {
 			appendUnique(serverIDsByHost, host, srv.ID)
+			short := strings.Split(host, ".")[0]
+			if short != "" {
+				appendUnique(serverIDsByShortName, short, srv.ID)
+			}
+		}
+		nm := strings.ToLower(strings.TrimSpace(srv.Name))
+		if nm != "" {
+			appendUnique(serverIDsByShortName, nm, srv.ID)
 		}
 	}
+	for _, srv := range serverRows {
+		indexServer(srv)
+	}
 
+	ipByAddr := make(map[string]queries.Ip, len(ipRows))
 	ipIDsByAddr := make(map[string][]string)
 	ipParentServer := make(map[string]string)
-	for _, ip := range ipRows {
-		if ip.Archived != 0 {
-			continue
-		}
+	ipAccountsSet := make(map[string][]string)
+	for _, link := range ipAccountLinks {
+		ipAccountsSet[link.IpID] = append(ipAccountsSet[link.IpID], link.AccountID)
+	}
+	indexIP := func(ip queries.Ip) {
 		addrKey := normalizeAddrKey(ip.Address)
+		if addrKey != "" {
+			ipByAddr[addrKey] = ip
+		}
+		if ip.Archived != 0 {
+			return
+		}
 		appendUnique(ipIDsByAddr, addrKey, ip.ID)
 		if ip.ServerID.Valid && ip.ServerID.String != "" {
 			ipParentServer[ip.ID] = ip.ServerID.String
 		}
 	}
+	for _, ip := range ipRows {
+		indexIP(ip)
+	}
 
-	// 2. Run bounded concurrent RDAP/WHOIS lookups ONLY for zones missing Registrar or ExpireDate
-	// (not in Cloudflare Registrar and not already populated in IRM)
+	// Bounded concurrent RDAP/WHOIS lookups ONLY for zones missing Registrar or ExpireDate
 	type lookupOutcome struct {
 		res domainname.LookupResult
 		err error
 	}
 	rdapResults := make(map[string]lookupOutcome)
-	if domainLookuper != nil {
+	if domainLookuper != nil && len(snap.Zones) > 0 {
 		var mu sync.Mutex
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, 4)
 
 		for _, zs := range snap.Zones {
-			zName := zs.Name
+			zName := strings.ToLower(strings.TrimSpace(zs.Name))
 			if zName == "" {
 				continue
 			}
-			if _, inCFReg := snap.Registrar[zName]; inCFReg {
+			if regInfo, inReg := snap.Registrar[zName]; inReg && regInfo.ExpiresAt != "" {
 				continue
 			}
 			if old, exists := existingByName[zName]; exists && old.ExpireDate != "" && old.Registrar != "" {
@@ -271,7 +426,6 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		wg.Wait()
 	}
 
-	// 3. Reconcile inside a single SQLite transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return conn, SyncStats{}, err
@@ -299,13 +453,422 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		}
 	}
 
+	// =========================================================================
+	// Phase 1: Reconcile Synced Servers
+	// =========================================================================
+	extServerToIRM := make(map[string]string)
+
+	for _, ss := range snap.Servers {
+		var matchedID string
+		if ss.ExternalID != "" {
+			matchedID = serverByExtID[ss.ExternalID]
+		}
+		if matchedID == "" {
+			if ids := serverIDsByIP[normalizeAddrKey(ss.IPv4)]; len(ids) == 1 {
+				matchedID = ids[0]
+			}
+		}
+		if matchedID == "" {
+			if ids := serverIDsByIP[normalizeAddrKey(ss.PrivateIP)]; len(ids) == 1 {
+				matchedID = ids[0]
+			}
+		}
+		if matchedID == "" {
+			cleanHost := strings.Trim(strings.ToLower(strings.TrimSpace(ss.Hostname)), ".")
+			if ids := serverIDsByHost[cleanHost]; len(ids) == 1 {
+				matchedID = ids[0]
+			} else if short := strings.Split(cleanHost, ".")[0]; short != "" {
+				if sids := serverIDsByShortName[short]; len(sids) == 1 {
+					matchedID = sids[0]
+				}
+			}
+		}
+
+		metaJSON, _ := json.Marshal(ss.Meta)
+		sshPort := ss.SSHPort
+		if sshPort <= 0 || sshPort > 65535 {
+			sshPort = 22
+		}
+		kind := normalizeSyncedServerKind(ss.Kind)
+		status := normalizeSyncedServerStatus(ss.Status)
+		region := firstNonEmptyStr(ss.Region, "US")
+		arch := normalizeSyncedServerArch(ss.Arch)
+		diskType := normalizeSyncedServerDiskType(ss.DiskType)
+		trafficRule := normalizeSyncedServerTrafficRule(ss.TrafficRule)
+		cleanExpire := normalizeOptionalISODate(ss.ExpireDate)
+
+		if matchedID == "" {
+			newSrvID := rand.Text()
+			tagsJSON := mergeTagsLimited("", ss.Tags)
+			srvName := strings.TrimSpace(ss.Name)
+			if srvName == "" {
+				srvName = firstNonEmptyStr(ss.Hostname, ss.IPv4, "Synced-Server")
+			}
+
+			if _, err := qtx.SaveServer(ctx, queries.SaveServerParams{
+				ID:              newSrvID,
+				PresetKey:       ss.PresetKey,
+				Name:            srvName,
+				Hostname:        ss.Hostname,
+				Provider:        ss.ProviderName,
+				Kind:            kind,
+				Status:          status,
+				Region:          region,
+				Datacenter:      ss.Datacenter,
+				Os:              ss.OS,
+				Arch:            arch,
+				CpuCores:        ss.CPUCores,
+				MemoryMb:        ss.MemoryMB,
+				DiskGb:          ss.DiskGB,
+				DiskType:        diskType,
+				BandwidthMbps:   ss.BandwidthMbps,
+				TrafficGb:       ss.TrafficGB,
+				TrafficRule:     trafficRule,
+				TrafficResetDay: ss.TrafficResetDay,
+				Ipv4:            ss.IPv4,
+				Ipv6:            ss.IPv6,
+				PrivateIp:       ss.PrivateIP,
+				PortNote:        "",
+				SshPort:         sshPort,
+				SshUser:         "root",
+				ConsoleUrl:      ss.ConsoleURL,
+				SubscriptionID:  sql.NullString{},
+				AccountID:       conn.AccountID,
+				ExpireDate:      cleanExpire,
+				TagsJson:        tagsJSON,
+				Notes:           "",
+				Archived:        0,
+				CreatedAt:       nowNano,
+				UpdatedAt:       nowNano,
+			}); err != nil {
+				return conn, SyncStats{}, err
+			}
+
+			savedSrv, err := qtx.UpdateServerSyncMeta(ctx, queries.UpdateServerSyncMetaParams{
+				PresetKey:            ss.PresetKey,
+				Name:                 srvName,
+				Hostname:             ss.Hostname,
+				Provider:             ss.ProviderName,
+				Kind:                 kind,
+				Status:               status,
+				Region:               region,
+				Datacenter:           ss.Datacenter,
+				Os:                   ss.OS,
+				Arch:                 arch,
+				CpuCores:             ss.CPUCores,
+				MemoryMb:             ss.MemoryMB,
+				DiskGb:               ss.DiskGB,
+				DiskType:             diskType,
+				BandwidthMbps:        ss.BandwidthMbps,
+				TrafficGb:            ss.TrafficGB,
+				TrafficResetDay:      ss.TrafficResetDay,
+				Ipv4:                 ss.IPv4,
+				Ipv6:                 ss.IPv6,
+				PrivateIp:            ss.PrivateIP,
+				ConsoleUrl:           ss.ConsoleURL,
+				AccountID:            conn.AccountID,
+				ExpireDate:           cleanExpire,
+				TagsJson:             tagsJSON,
+				ProviderConnectionID: nullString(conn.ID),
+				ExternalID:           ss.ExternalID,
+				ProviderMetaJson:     string(metaJSON),
+				UpdatedAt:            nowNano,
+				ID:                   newSrvID,
+			})
+			if err != nil {
+				return conn, SyncStats{}, err
+			}
+
+			indexServer(savedSrv)
+			if ss.ExternalID != "" {
+				extServerToIRM[ss.ExternalID] = newSrvID
+			}
+			stats.ServersImported++
+			continue
+		}
+
+		// Non-destructive enrich of existing server
+		oldSrv := serverByID[matchedID]
+		acct := oldSrv.AccountID
+		if !acct.Valid && conn.AccountID.Valid {
+			acct = conn.AccountID
+		}
+		cpu := oldSrv.CpuCores
+		if cpu == 0 && ss.CPUCores > 0 {
+			cpu = ss.CPUCores
+		}
+		mem := oldSrv.MemoryMb
+		if mem == 0 && ss.MemoryMB > 0 {
+			mem = ss.MemoryMB
+		}
+		disk := oldSrv.DiskGb
+		if disk == 0 && ss.DiskGB > 0 {
+			disk = ss.DiskGB
+		}
+		bw := oldSrv.BandwidthMbps
+		if bw == 0 && ss.BandwidthMbps > 0 {
+			bw = ss.BandwidthMbps
+		}
+		trafficGB := oldSrv.TrafficGb
+		if ss.TrafficGB > 0 {
+			trafficGB = ss.TrafficGB
+		}
+		resetDay := oldSrv.TrafficResetDay
+		if ss.TrafficResetDay > 0 {
+			resetDay = ss.TrafficResetDay
+		}
+		expDate := oldSrv.ExpireDate
+		if cleanExpire != "" {
+			expDate = cleanExpire
+		}
+		tagsJSON := mergeTagsLimited(oldSrv.TagsJson, ss.Tags)
+
+		// Preserve existing providerMeta if new sync is overlay-only (e.g. Tailscale enriching a VPS)
+		mergedMeta := string(metaJSON)
+		if provider == "tailscale" && oldSrv.ProviderMetaJson != "" && oldSrv.ProviderMetaJson != "{}" {
+			var prevMeta cloudsync.ServerProviderMeta
+			if json.Unmarshal([]byte(oldSrv.ProviderMetaJson), &prevMeta) == nil && prevMeta.TrafficTotalBytes > 0 {
+				prevMeta.LastSeenAt = ss.Meta.LastSeenAt
+				prevMeta.ClientVersion = ss.Meta.ClientVersion
+				rawM, _ := json.Marshal(prevMeta)
+				mergedMeta = string(rawM)
+			}
+		}
+
+		updatedSrv, err := qtx.UpdateServerSyncMeta(ctx, queries.UpdateServerSyncMetaParams{
+			PresetKey:            firstNonEmptyStr(oldSrv.PresetKey, ss.PresetKey),
+			Name:                 firstNonEmptyStr(oldSrv.Name, ss.Name),
+			Hostname:             firstNonEmptyStr(oldSrv.Hostname, ss.Hostname),
+			Provider:             firstNonEmptyStr(oldSrv.Provider, ss.ProviderName),
+			Kind:                 firstNonEmptyStr(oldSrv.Kind, kind),
+			Status:               firstNonEmptyStr(oldSrv.Status, status),
+			Region:               firstNonEmptyStr(oldSrv.Region, region),
+			Datacenter:           firstNonEmptyStr(oldSrv.Datacenter, ss.Datacenter),
+			Os:                   firstNonEmptyStr(oldSrv.Os, ss.OS),
+			Arch:                 firstNonEmptyStr(oldSrv.Arch, arch),
+			CpuCores:             cpu,
+			MemoryMb:             mem,
+			DiskGb:               disk,
+			DiskType:             firstNonEmptyStr(oldSrv.DiskType, diskType),
+			BandwidthMbps:        bw,
+			TrafficGb:            trafficGB,
+			TrafficResetDay:      resetDay,
+			Ipv4:                 firstNonEmptyStr(oldSrv.Ipv4, ss.IPv4),
+			Ipv6:                 firstNonEmptyStr(oldSrv.Ipv6, ss.IPv6),
+			PrivateIp:            firstNonEmptyStr(oldSrv.PrivateIp, ss.PrivateIP),
+			ConsoleUrl:           firstNonEmptyStr(oldSrv.ConsoleUrl, ss.ConsoleURL),
+			AccountID:            acct,
+			ExpireDate:           expDate,
+			TagsJson:             tagsJSON,
+			ProviderConnectionID: nullString(conn.ID),
+			ExternalID:           firstNonEmptyStr(ss.ExternalID, oldSrv.ExternalID),
+			ProviderMetaJson:     mergedMeta,
+			UpdatedAt:            nowNano,
+			ID:                   oldSrv.ID,
+		})
+		if err != nil {
+			return conn, SyncStats{}, err
+		}
+
+		indexServer(updatedSrv)
+		if ss.ExternalID != "" {
+			extServerToIRM[ss.ExternalID] = oldSrv.ID
+		}
+		stats.ServersUpdated++
+	}
+
+	// =========================================================================
+	// Phase 2: Reconcile Synced IPs
+	// =========================================================================
+	for _, sip := range snap.IPs {
+		parsed, perr := ipaddr.ParseAddress(sip.Address)
+		if perr != nil {
+			continue
+		}
+		addrKey := normalizeAddrKey(parsed.Canonical)
+		if addrKey == "" {
+			continue
+		}
+
+		var linkedSrvID string
+		if sip.HostExternalID != "" {
+			linkedSrvID = extServerToIRM[sip.HostExternalID]
+		}
+		if linkedSrvID == "" {
+			if sids := serverIDsByIP[addrKey]; len(sids) == 1 {
+				linkedSrvID = sids[0]
+			}
+		}
+
+		scope := normalizeSyncedIPScope(sip.NetworkScope)
+		cat := normalizeSyncedIPCategory(sip.Category)
+		region := firstNonEmptyStr(sip.Region, "US")
+		asnType := normalizeSyncedIPASNType(sip.ASNType)
+		originType := normalizeSyncedIPOriginType(sip.OriginType)
+		role := normalizeSyncedIPRole(sip.Role)
+		status := normalizeSyncedIPStatus(sip.Status)
+		risk := normalizeSyncedIPRiskLevel(sip.RiskLevel)
+
+		oldIP, exists := ipByAddr[addrKey]
+		if !exists {
+			newIPID := rand.Text()
+			tagsJSON := mergeTagsLimited("", sip.Tags)
+			probeStatus := "unchecked"
+			if !parsed.ProbingAllowed {
+				probeStatus = "skipped_non_public"
+			}
+
+			if _, err := qtx.SaveIP(ctx, queries.SaveIPParams{
+				ID:              newIPID,
+				PresetKey:       sip.PresetKey,
+				Address:         parsed.Canonical,
+				Version:         int64(parsed.Version),
+				PrefixLen:       int64(parsed.PrefixLen),
+				NetworkScope:    scope,
+				Category:        cat,
+				Provider:        firstNonEmptyStr(sip.ProviderName, provider),
+				Label:           sip.Label,
+				Region:          region,
+				City:            sip.City,
+				Asn:             0,
+				AsnOrg:          "",
+				PtrRecord:       "",
+				AsnType:         asnType,
+				OriginType:      originType,
+				RiskLevel:       risk,
+				PurityNote:      sip.PurityNote,
+				UnlocksJson:     "{}",
+				TagsJson:        tagsJSON,
+				ManualLocksJson: "[]",
+				LookupSource:    provider,
+				LookupCheckedAt: nowSec,
+				LookupError:     "",
+				Role:            role,
+				Status:          status,
+				ReviewCycle:     "none",
+				ReviewDays:      0,
+				NextReviewDate:  "",
+				LastReviewedAt:  "",
+				ProbeMode:       "none",
+				ProbePort:       0,
+				ProbeStatus:     probeStatus,
+				ProbeLatencyMs:  0,
+				ProbeCheckedAt:  "",
+				ProbeError:      "",
+				SubscriptionID:  sql.NullString{},
+				ServerID:        nullString(linkedSrvID),
+				HostLabel:       sip.HostLabel,
+				ConsoleUrl:      sip.ConsoleURL,
+				Notes:           "",
+				Archived:        0,
+				CreatedAt:       nowNano,
+				UpdatedAt:       nowNano,
+			}); err != nil {
+				return conn, SyncStats{}, err
+			}
+
+			savedIP, err := qtx.UpdateIPSyncMeta(ctx, queries.UpdateIPSyncMetaParams{
+				PresetKey:            sip.PresetKey,
+				Provider:             firstNonEmptyStr(sip.ProviderName, provider),
+				Label:                sip.Label,
+				Region:               region,
+				City:                 sip.City,
+				RiskLevel:            risk,
+				PurityNote:           sip.PurityNote,
+				Status:               status,
+				ServerID:             nullString(linkedSrvID),
+				HostLabel:            sip.HostLabel,
+				ConsoleUrl:           sip.ConsoleURL,
+				TagsJson:             tagsJSON,
+				ProviderConnectionID: nullString(conn.ID),
+				ExternalID:           sip.ExternalID,
+				UpdatedAt:            nowNano,
+				ID:                   newIPID,
+			})
+			if err != nil {
+				return conn, SyncStats{}, err
+			}
+
+			if conn.AccountID.Valid && conn.AccountID.String != "" {
+				_ = qtx.InsertIPAccount(ctx, queries.InsertIPAccountParams{
+					IpID:      newIPID,
+					AccountID: conn.AccountID.String,
+					CreatedAt: nowNano,
+				})
+				ipAccountsSet[newIPID] = append(ipAccountsSet[newIPID], conn.AccountID.String)
+			}
+
+			indexIP(savedIP)
+			stats.IPsImported++
+			if linkedSrvID != "" {
+				stats.ServerLinksAdded++
+			}
+			continue
+		}
+
+		// Non-destructive enrich of existing IP
+		srvLink := oldIP.ServerID
+		if (!srvLink.Valid || srvLink.String == "") && linkedSrvID != "" {
+			srvLink = nullString(linkedSrvID)
+			stats.ServerLinksAdded++
+		}
+		mergedRisk := oldIP.RiskLevel
+		mergedPurity := oldIP.PurityNote
+		if risk == "high" || (mergedRisk == "unassessed" && sip.RiskLevel != "") {
+			mergedRisk = risk
+			if sip.PurityNote != "" {
+				mergedPurity = sip.PurityNote
+			}
+		}
+		tagsJSON := mergeTagsLimited(oldIP.TagsJson, sip.Tags)
+
+		updatedIP, err := qtx.UpdateIPSyncMeta(ctx, queries.UpdateIPSyncMetaParams{
+			PresetKey:            firstNonEmptyStr(oldIP.PresetKey, sip.PresetKey),
+			Provider:             firstNonEmptyStr(oldIP.Provider, sip.ProviderName),
+			Label:                firstNonEmptyStr(oldIP.Label, sip.Label),
+			Region:               firstNonEmptyStr(oldIP.Region, region),
+			City:                 firstNonEmptyStr(oldIP.City, sip.City),
+			RiskLevel:            mergedRisk,
+			PurityNote:           mergedPurity,
+			Status:               firstNonEmptyStr(oldIP.Status, status),
+			ServerID:             srvLink,
+			HostLabel:            firstNonEmptyStr(oldIP.HostLabel, sip.HostLabel),
+			ConsoleUrl:           firstNonEmptyStr(oldIP.ConsoleUrl, sip.ConsoleURL),
+			TagsJson:             tagsJSON,
+			ProviderConnectionID: nullString(conn.ID),
+			ExternalID:           firstNonEmptyStr(sip.ExternalID, oldIP.ExternalID),
+			UpdatedAt:            nowNano,
+			ID:                   oldIP.ID,
+		})
+		if err != nil {
+			return conn, SyncStats{}, err
+		}
+
+		if conn.AccountID.Valid && conn.AccountID.String != "" && !slices.Contains(ipAccountsSet[oldIP.ID], conn.AccountID.String) {
+			_ = qtx.InsertIPAccount(ctx, queries.InsertIPAccountParams{
+				IpID:      oldIP.ID,
+				AccountID: conn.AccountID.String,
+				CreatedAt: nowNano,
+			})
+			ipAccountsSet[oldIP.ID] = append(ipAccountsSet[oldIP.ID], conn.AccountID.String)
+		}
+
+		indexIP(updatedIP)
+		stats.IPsUpdated++
+	}
+
+	// =========================================================================
+	// Phase 3: Reconcile Synced Domains, DNS Records & Edge Topology
+	// =========================================================================
+	defaultRegDisplay := providerRegistrarDisplayName(provider)
+	defaultPreset := providerDefaultPresetKey(provider)
+
 	for _, zs := range snap.Zones {
 		normalizedName, normErr := domainname.NormalizeName(zs.Name)
 		if normErr != nil {
 			continue
 		}
 
-		// Match DNS records to IRM Servers & IPs
 		var (
 			autoServerIDs []string
 			autoIPIDs     []string
@@ -366,7 +929,6 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		}
 		stats.RecordsSynced += len(enrichedRecords)
 
-		// Match Cloudflare Tunnels & Pages belonging to this zone
 		var zoneTunnels []cloudsync.SyncedTunnelRoute
 		for _, tun := range snap.Tunnels {
 			if tun.Hostname != "" && zoneMatchesHostname(normalizedName, tun.Hostname) {
@@ -391,7 +953,7 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		}
 
 		edgeMeta := cloudsync.DomainEdgeMeta{
-			Provider:      "cloudflare",
+			Provider:      provider,
 			AccountName:   zs.AccountName,
 			Plan:          zs.PlanName,
 			ZoneStatus:    zs.Status,
@@ -405,48 +967,66 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		recordsJSON, _ := json.Marshal(enrichedRecords)
 		edgeJSON, _ := json.Marshal(edgeMeta)
 
-		cfReg, hasCFReg := snap.Registrar[normalizedName]
+		regInfo, hasReg := snap.Registrar[normalizedName]
 		rdapOut, hasRDAP := rdapResults[normalizedName]
 
-		consoleURL := "https://dash.cloudflare.com"
-		if zs.AccountID != "" {
-			consoleURL = "https://dash.cloudflare.com/" + zs.AccountID + "/" + normalizedName
+		consoleURL := zs.ConsoleURL
+		if consoleURL == "" {
+			if provider == "cloudflare" {
+				consoleURL = "https://dash.cloudflare.com"
+				if zs.AccountID != "" {
+					consoleURL = "https://dash.cloudflare.com/" + zs.AccountID + "/" + normalizedName
+				}
+			}
 		}
+
+		zoneDNSProvider := zs.DNSProviderName
+		if zoneDNSProvider == "" && provider == "cloudflare" {
+			zoneDNSProvider = "Cloudflare DNS"
+		}
+
+		zonePreset := firstNonEmptyStr(zs.DefaultPresetKey, defaultPreset)
 
 		old, exists := existingByName[normalizedName]
 		if !exists {
-			// Create brand-new domain from Cloudflare Zone!
-			presetKey := "cloudflare"
+			presetKey := zonePreset
 			registrar := ""
+			dnsProv := zoneDNSProvider
 			expireDate := ""
 			autoRenew := int64(1)
 			whoisPrivacy := int64(1)
-			lookupSource := "cloudflare"
+			lookupSource := provider
 			lookupErrText := ""
 
-			if hasCFReg {
-				registrar = "Cloudflare"
-				expireDate = cfReg.ExpiresAt
-				if !cfReg.AutoRenew {
+			if hasReg {
+				registrar = defaultRegDisplay
+				expireDate = regInfo.ExpiresAt
+				if !regInfo.AutoRenew {
 					autoRenew = 0
 				}
-				if !cfReg.Privacy {
+				if !regInfo.Privacy {
 					whoisPrivacy = 0
 				}
-				lookupSource = "cloudflare_registrar"
-			} else if hasRDAP {
+				lookupSource = provider + "_registrar"
+			}
+			if hasRDAP {
 				if rdapOut.err == nil {
-					if rdapOut.res.Registrar != "" {
+					if registrar == "" && rdapOut.res.Registrar != "" {
 						registrar = rdapOut.res.Registrar
 					}
-					if rdapOut.res.ExpireDate != "" {
+					if expireDate == "" && rdapOut.res.ExpireDate != "" {
 						expireDate = rdapOut.res.ExpireDate
 					}
-					if rdapOut.res.PresetKey != "" {
+					if dnsProv == "" && rdapOut.res.DNSProvider != "" {
+						dnsProv = rdapOut.res.DNSProvider
+					}
+					if presetKey == "" && rdapOut.res.PresetKey != "" {
 						presetKey = rdapOut.res.PresetKey
 					}
-					lookupSource = "cloudflare+" + rdapOut.res.Source
-				} else {
+					if !hasReg {
+						lookupSource = provider + "+" + rdapOut.res.Source
+					}
+				} else if !hasReg {
 					lookupErrText = rdapOut.err.Error()
 				}
 			}
@@ -456,17 +1036,14 @@ func (s *Store) ReconcileCloudflareSnapshot(
 				domStatus = "parked"
 			}
 
-			var tags []string
+			var extraTags []string
 			if proxiedCount > 0 {
-				tags = append(tags, "Cloudflare 橙云")
+				extraTags = append(extraTags, "Cloudflare 橙云")
 			}
 			if len(zoneTunnels) > 0 {
-				tags = append(tags, "CF Tunnel")
+				extraTags = append(extraTags, "CF Tunnel")
 			}
-			if tags == nil {
-				tags = []string{}
-			}
-			tagsJSON, _ := json.Marshal(tags)
+			tagsJSON := mergeTagsLimited("", extraTags)
 
 			newID := rand.Text()
 			if _, err := qtx.SaveDomain(ctx, queries.SaveDomainParams{
@@ -474,7 +1051,7 @@ func (s *Store) ReconcileCloudflareSnapshot(
 				PresetKey:          presetKey,
 				Name:               normalizedName,
 				Registrar:          registrar,
-				DnsProvider:        "Cloudflare DNS",
+				DnsProvider:        dnsProv,
 				Purpose:            "prod",
 				Status:             domStatus,
 				ExpireDate:         expireDate,
@@ -485,7 +1062,7 @@ func (s *Store) ReconcileCloudflareSnapshot(
 				ManagementUrl:      consoleURL,
 				SubscriptionID:     sql.NullString{},
 				RegistrarAccountID: conn.AccountID,
-				TagsJson:           string(tagsJSON),
+				TagsJson:           tagsJSON,
 				Notes:              "",
 				Archived:           0,
 				CreatedAt:          nowNano,
@@ -497,14 +1074,14 @@ func (s *Store) ReconcileCloudflareSnapshot(
 			if _, err := qtx.UpdateDomainSyncMeta(ctx, queries.UpdateDomainSyncMetaParams{
 				PresetKey:            presetKey,
 				Registrar:            registrar,
-				DnsProvider:          "Cloudflare DNS",
+				DnsProvider:          dnsProv,
 				Status:               domStatus,
 				ExpireDate:           expireDate,
 				AutoRenew:            autoRenew,
 				WhoisPrivacy:         whoisPrivacy,
 				ManagementUrl:        consoleURL,
 				RegistrarAccountID:   conn.AccountID,
-				TagsJson:             string(tagsJSON),
+				TagsJson:             tagsJSON,
 				ProviderConnectionID: nullString(conn.ID),
 				ExternalZoneID:       zs.ZoneID,
 				DnsRecordsJson:       string(recordsJSON),
@@ -542,11 +1119,8 @@ func (s *Store) ReconcileCloudflareSnapshot(
 			continue
 		}
 
-		// Update existing domain non-destructively!
-		presetKey := old.PresetKey
-		if presetKey == "" {
-			presetKey = "cloudflare"
-		}
+		// Non-destructive update of existing domain
+		presetKey := firstNonEmptyStr(old.PresetKey, zonePreset)
 		registrar := old.Registrar
 		expireDate := old.ExpireDate
 		autoRenew := old.AutoRenew
@@ -554,19 +1128,24 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		lookupSource := old.LookupSource
 		lookupErrText := ""
 
-		if hasCFReg {
-			if registrar == "" || strings.EqualFold(registrar, "Cloudflare") {
-				registrar = "Cloudflare"
+		if hasReg {
+			if registrar == "" || strings.EqualFold(registrar, defaultRegDisplay) {
+				registrar = defaultRegDisplay
 			}
-			if cfReg.ExpiresAt != "" {
-				expireDate = cfReg.ExpiresAt
+			if regInfo.ExpiresAt != "" {
+				expireDate = regInfo.ExpiresAt
 			}
-			if cfReg.AutoRenew {
+			if regInfo.AutoRenew {
 				autoRenew = 1
 			} else {
 				autoRenew = 0
 			}
-			lookupSource = "cloudflare_registrar"
+			if regInfo.Privacy {
+				whoisPrivacy = 1
+			} else {
+				whoisPrivacy = 0
+			}
+			lookupSource = provider + "_registrar"
 		} else if hasRDAP {
 			if rdapOut.err == nil {
 				if registrar == "" && rdapOut.res.Registrar != "" {
@@ -578,20 +1157,20 @@ func (s *Store) ReconcileCloudflareSnapshot(
 				if old.PresetKey == "" && rdapOut.res.PresetKey != "" {
 					presetKey = rdapOut.res.PresetKey
 				}
-				lookupSource = "cloudflare+" + rdapOut.res.Source
+				lookupSource = provider + "+" + rdapOut.res.Source
 			} else {
 				lookupErrText = rdapOut.err.Error()
 			}
 		} else if lookupSource == "" {
-			lookupSource = "cloudflare"
+			lookupSource = provider
 		}
 
 		dnsProvider := old.DnsProvider
-		if dnsProvider == "" || strings.Contains(strings.ToLower(dnsProvider), "cloudflare") {
-			dnsProvider = "Cloudflare DNS"
+		if zoneDNSProvider != "" && (dnsProvider == "" || strings.EqualFold(dnsProvider, zoneDNSProvider) || (provider == "cloudflare" && strings.Contains(strings.ToLower(dnsProvider), "cloudflare"))) {
+			dnsProvider = zoneDNSProvider
 		}
 		mgmtURL := old.ManagementUrl
-		if mgmtURL == "" || mgmtURL == "https://dash.cloudflare.com" {
+		if consoleURL != "" && (mgmtURL == "" || mgmtURL == "https://dash.cloudflare.com") {
 			mgmtURL = consoleURL
 		}
 		regAcct := old.RegistrarAccountID
@@ -599,20 +1178,26 @@ func (s *Store) ReconcileCloudflareSnapshot(
 			regAcct = conn.AccountID
 		}
 
-		var tags []string
-		if old.TagsJson != "" {
-			_ = json.Unmarshal([]byte(old.TagsJson), &tags)
+		var extraTags []string
+		if proxiedCount > 0 {
+			extraTags = append(extraTags, "Cloudflare 橙云")
 		}
-		if proxiedCount > 0 && !slices.Contains(tags, "Cloudflare 橙云") && len(tags) < 20 {
-			tags = append(tags, "Cloudflare 橙云")
+		if len(zoneTunnels) > 0 {
+			extraTags = append(extraTags, "CF Tunnel")
 		}
-		if len(zoneTunnels) > 0 && !slices.Contains(tags, "CF Tunnel") && len(tags) < 20 {
-			tags = append(tags, "CF Tunnel")
+		tagsJSON := mergeTagsLimited(old.TagsJson, extraTags)
+
+		// Preserve existing DNS/Edge snapshot if this sync is registrar-only (e.g. Porkbun/Aliyun registrar updating a Cloudflare-hosted zone)
+		finalConnID := nullString(conn.ID)
+		finalExtZoneID := zs.ZoneID
+		finalRecordsJSON := string(recordsJSON)
+		finalEdgeJSON := string(edgeJSON)
+		if zs.RegistrarOnly && len(enrichedRecords) == 0 && len(zonePages) == 0 && old.DnsRecordsJson != "" && old.DnsRecordsJson != "[]" {
+			finalConnID = old.ProviderConnectionID
+			finalExtZoneID = old.ExternalZoneID
+			finalRecordsJSON = old.DnsRecordsJson
+			finalEdgeJSON = old.EdgeMetaJson
 		}
-		if tags == nil {
-			tags = []string{}
-		}
-		tagsJSON, _ := json.Marshal(tags)
 
 		if _, err := qtx.UpdateDomainSyncMeta(ctx, queries.UpdateDomainSyncMetaParams{
 			PresetKey:            presetKey,
@@ -624,11 +1209,11 @@ func (s *Store) ReconcileCloudflareSnapshot(
 			WhoisPrivacy:         whoisPrivacy,
 			ManagementUrl:        mgmtURL,
 			RegistrarAccountID:   regAcct,
-			TagsJson:             string(tagsJSON),
-			ProviderConnectionID: nullString(conn.ID),
-			ExternalZoneID:       zs.ZoneID,
-			DnsRecordsJson:       string(recordsJSON),
-			EdgeMetaJson:         string(edgeJSON),
+			TagsJson:             tagsJSON,
+			ProviderConnectionID: finalConnID,
+			ExternalZoneID:       finalExtZoneID,
+			DnsRecordsJson:       finalRecordsJSON,
+			EdgeMetaJson:         finalEdgeJSON,
 			LookupSource:         lookupSource,
 			LookupCheckedAt:      nowSec,
 			LookupError:          lookupErrText,
@@ -638,7 +1223,6 @@ func (s *Store) ReconcileCloudflareSnapshot(
 			return conn, SyncStats{}, err
 		}
 
-		// Additive merge for ServerIDs & IPIDs
 		for _, sid := range autoServerIDs {
 			if !slices.Contains(old.ServerIDs, sid) {
 				if err := qtx.InsertServerDomain(ctx, queries.InsertServerDomainParams{
@@ -695,4 +1279,150 @@ func (s *Store) ReconcileCloudflareSnapshot(
 		return conn, SyncStats{}, err
 	}
 	return updatedConn, stats, nil
+}
+
+func firstNonEmptyStr(values ...string) string {
+	for _, v := range values {
+		if t := strings.TrimSpace(v); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
+func normalizeOptionalISODate(raw string) string {
+	s := strings.TrimSpace(raw)
+	if len(s) >= 10 {
+		if _, err := time.Parse("2006-01-02", s[:10]); err == nil {
+			return s[:10]
+		}
+	}
+	return ""
+}
+
+func normalizeSyncedServerKind(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "vps", "dedicated", "nat", "homelab", "nas":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "vps"
+	}
+}
+
+func normalizeSyncedServerStatus(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "active", "standby", "maintenance", "retiring":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "active"
+	}
+}
+
+func normalizeSyncedServerArch(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	switch {
+	case s == "arm64" || s == "aarch64" || strings.Contains(s, "arm"):
+		return "arm64"
+	case s == "other":
+		return "other"
+	default:
+		return "amd64"
+	}
+}
+
+func normalizeSyncedServerDiskType(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	switch {
+	case s == "nvme" || strings.Contains(s, "nvme"):
+		return "nvme"
+	case s == "ssd" || strings.Contains(s, "ssd") || strings.Contains(s, "essd"):
+		return "ssd"
+	case s == "hdd" || strings.Contains(s, "hdd") || strings.Contains(s, "sata"):
+		return "hdd"
+	case s == "raid":
+		return "raid"
+	default:
+		return ""
+	}
+}
+
+func normalizeSyncedServerTrafficRule(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "out_only", "out":
+		return "out_only"
+	case "unlimited":
+		return "unlimited"
+	default:
+		return "both"
+	}
+}
+
+func normalizeSyncedIPScope(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "overseas_exit", "domestic_entry", "overlay_private":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "overseas_exit"
+	}
+}
+
+func normalizeSyncedIPCategory(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	switch s {
+	case "residential_isp", "cloud_vps", "floating_eip", "transit_relay", "home_ddns", "overlay_subnet":
+		return s
+	case "overlay_mesh":
+		return "overlay_subnet"
+	default:
+		return "cloud_vps"
+	}
+}
+
+func normalizeSyncedIPASNType(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "residential", "isp", "hosting", "mobile", "business", "private":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "hosting"
+	}
+}
+
+func normalizeSyncedIPOriginType(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "native", "broadcast", "unknown":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "native"
+	}
+}
+
+func normalizeSyncedIPRole(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "dedicated", "primary", "service", "standby":
+		return strings.ToLower(strings.TrimSpace(raw))
+	case "overlay":
+		return "service"
+	default:
+		return "primary"
+	}
+}
+
+func normalizeSyncedIPStatus(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "active", "degraded", "blocked", "retiring":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "active"
+	}
+}
+
+func normalizeSyncedIPRiskLevel(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "clean", "low", "medium", "high", "unassessed":
+		return strings.ToLower(strings.TrimSpace(raw))
+	case "high_risk":
+		return "high"
+	default:
+		return "unassessed"
+	}
 }

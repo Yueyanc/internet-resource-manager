@@ -3,6 +3,7 @@ import {
   currencies,
   type Domain,
   type IpNode,
+  type ProviderConnection,
   type ServerInput,
   type Subscription,
   type SubscriptionInput,
@@ -27,6 +28,7 @@ import {
   Box,
   Check,
   ChevronDown,
+  Cloud,
   FileText,
   Globe,
   Link2,
@@ -43,6 +45,11 @@ import { type CSSProperties, useMemo, useState } from 'react';
 
 import type { MessageKey } from '../../../app/messages';
 import { usePreferences } from '../../../app/preferences-context';
+import {
+  type CloudSyncProviderKey,
+  PROVIDER_BRIEFS,
+  resolveServerSyncProvider,
+} from '../../integrations/provider-matching';
 import { ipDisplayTitle } from '../../ips/utils/ip-metrics';
 import { AccountQuickDropdown } from '../../subscriptions/components/subscription-account-fields';
 import { cycles } from '../../subscriptions/utils/subscription-metrics';
@@ -222,6 +229,8 @@ export function ServerPropertySheet({
   accounts,
   domains,
   ips,
+  providerConnections = [],
+  onOpenProviderSync,
   isEditing,
   initialAccountId,
   initialOpenExtras,
@@ -238,6 +247,8 @@ export function ServerPropertySheet({
   accounts: Account[];
   domains: Domain[];
   ips: IpNode[];
+  providerConnections?: ProviderConnection[];
+  onOpenProviderSync?: (provider: CloudSyncProviderKey) => void;
   isEditing?: boolean;
   initialAccountId?: string;
   initialOpenExtras?: ServerExtraKey[];
@@ -281,6 +292,23 @@ export function ServerPropertySheet({
   const explicitPreset = findServerPreset(presetKey);
   const activePreset = explicitPreset ?? resolveServerPreset({ presetKey, provider: watchedProvider, name: watchedName });
   const kindMeta = serverKindMeta[watchedKind];
+
+  const syncProviderKey = useMemo(
+    () => resolveServerSyncProvider({
+      presetKey: presetKey || activePreset?.key,
+      provider: watchedProvider,
+    }),
+    [presetKey, activePreset?.key, watchedProvider],
+  );
+  const matchedConnections = useMemo(
+    () => (syncProviderKey ? providerConnections.filter(c => c.provider === syncProviderKey) : []),
+    [providerConnections, syncProviderKey],
+  );
+  const matchedHasError = matchedConnections.some(c => c.status === 'error');
+  const syncProviderBrief = syncProviderKey ? PROVIDER_BRIEFS[syncProviderKey] : undefined;
+  const syncProviderLabel = syncProviderBrief
+    ? (locale === 'en-US' ? syncProviderBrief.en : syncProviderBrief.zh)
+    : '';
 
   const regionDisplay = useMemo(() => {
     const clean = watchedRegion.trim().toUpperCase() || 'HK';
@@ -522,6 +550,49 @@ export function ServerPropertySheet({
           </Dropdown>
         </div>
       </div>
+
+      {!isEditing && onOpenProviderSync && syncProviderKey && (
+        <div className="cf-composer-callout">
+          <div className="cf-composer-callout-meta">
+            <span
+              className="cf-composer-callout-icon"
+              style={syncProviderBrief ? { '--callout-tint': syncProviderBrief.color } as CSSProperties : undefined}
+              aria-hidden="true"
+            >
+              <Cloud size={16} />
+            </span>
+            <div className="cf-composer-callout-copy">
+              <strong>
+                {t(
+                  matchedConnections.length > 0
+                    ? '已接入 {provider} 只读同步'
+                    : '支持 {provider} 只读自动同步',
+                  { provider: syncProviderLabel },
+                )}
+              </strong>
+              <p>
+                {t(
+                  matchedConnections.length > 0
+                    ? '无需逐台手填，可一键从已绑定的 {provider} 账号同步实例规格、IP 地址与官方流量配额。'
+                    : '无需逐台手填，通过 {provider} 只读鉴权一键批量导入名下实例规格、公私网 IP 与流量周期。',
+                  { provider: syncProviderLabel },
+                )}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="small"
+            onClick={() => onOpenProviderSync(syncProviderKey)}
+            className="cf-sync-trigger-btn is-compact"
+            icon={<Cloud size={13} />}
+          >
+            <span>{t('{provider} 同步', { provider: syncProviderLabel })}</span>
+            {matchedConnections.length > 0 && (
+              <span className={`cf-live-dot ${matchedHasError ? 'is-error' : ''}`} />
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Signature Strip: 4-Cell Hardware Spec Telemetry Bar */}
       <div className="sheet-signature-strip server-spec-strip">

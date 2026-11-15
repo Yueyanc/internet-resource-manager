@@ -1,6 +1,7 @@
 import {
   accountsOptions,
   domainsOptions,
+  integrationsOptions,
   type IpInput,
   previewIpLookup,
   saveIp,
@@ -10,10 +11,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Form, Modal } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import { useState } from 'react';
+import { ArrowLeft, Cloud } from 'lucide-react';
+import { type CSSProperties, useState } from 'react';
 
 import { usePreferences } from '../../../app/preferences-context';
 import { errorMessage } from '../../../shared/errors';
+import {
+  type CloudSyncProviderKey,
+  PROVIDER_BRIEFS,
+} from '../../integrations/provider-matching';
+import { ProviderSyncPanel } from '../../integrations/provider-sync-modal';
 import type { IpPreset, IpPresetVariant } from '../presets/ip-presets';
 import { nextReviewDate } from '../utils/ip-metrics';
 import { type IpLockableField, IpPropertySheet } from './ip-composer-parts';
@@ -22,13 +29,23 @@ type WizardValues = Omit<IpInput, 'presetKey' | 'nextReviewDate' | 'lastReviewed
   nextReviewDate?: Dayjs;
 };
 
+type IpEntryMode = 'manual' | CloudSyncProviderKey;
+
 function defaultReviewDate(cycle: IpInput['reviewCycle'], days = 90): Dayjs {
   const today = dayjs().format('YYYY-MM-DD');
   const next = nextReviewDate(today, cycle, days);
   return dayjs(next ?? today);
 }
 
-function IpWizardBody({ onClose }: { onClose: () => void }) {
+function IpWizardBody({
+  mode,
+  onModeChange,
+  onClose,
+}: {
+  mode: IpEntryMode;
+  onModeChange: (mode: IpEntryMode) => void;
+  onClose: () => void;
+}) {
   const { t, locale } = usePreferences();
   const [form] = Form.useForm<WizardValues>();
   const client = useQueryClient();
@@ -37,10 +54,12 @@ function IpWizardBody({ onClose }: { onClose: () => void }) {
   const subsQuery = useQuery(subscriptionsOptions);
   const domainsQuery = useQuery(domainsOptions);
   const accountsQuery = useQuery(accountsOptions);
+  const integrationsQuery = useQuery(integrationsOptions);
 
   const activeSubscriptions = subsQuery.isSuccess ? subsQuery.data.items.filter(item => !item.archived) : [];
   const allDomains = domainsQuery.isSuccess ? domainsQuery.data.items : [];
   const activeAccounts = accountsQuery.isSuccess ? accountsQuery.data.items.filter(item => !item.archived) : [];
+  const providerConnections = integrationsQuery.isSuccess ? integrationsQuery.data.items : [];
 
   const [presetKey, setPresetKey] = useState('');
   const [variantId, setVariantId] = useState('');
@@ -171,6 +190,23 @@ function IpWizardBody({ onClose }: { onClose: () => void }) {
     });
   };
 
+  if (mode !== 'manual') {
+    const accountIds = (form.getFieldValue('accountIds') as string[] | undefined) ?? [];
+    return (
+      <ProviderSyncPanel
+        key={mode}
+        active
+        scope="ips"
+        initialProvider={mode}
+        accounts={activeAccounts}
+        initialAccountId={accountIds[0] ?? ''}
+        cancelLabel={t('返回手动录入')}
+        onCancel={() => onModeChange('manual')}
+        onSynced={onClose}
+      />
+    );
+  }
+
   return (
     <>
       {mutation.isError && (
@@ -232,6 +268,8 @@ function IpWizardBody({ onClose }: { onClose: () => void }) {
           subscriptions={activeSubscriptions}
           domains={allDomains}
           accounts={activeAccounts}
+          providerConnections={providerConnections}
+          onOpenProviderSync={prov => onModeChange(prov)}
           submitting={mutation.isPending}
           onCancel={onClose}
         />
@@ -247,20 +285,55 @@ export function IpWizardModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { t } = usePreferences();
+  const { t, locale } = usePreferences();
+  const [mode, setMode] = useState<IpEntryMode>('manual');
+
+  const handleClose = () => {
+    setMode('manual');
+    onClose();
+  };
+
+  const activeBrief = mode !== 'manual' ? PROVIDER_BRIEFS[mode] : undefined;
+  const providerTitle = activeBrief ? (locale === 'en-US' ? activeBrief.en : activeBrief.zh) : '';
 
   return (
     <Modal
       open={open}
-      title={t('新建 IP')}
-      onCancel={onClose}
-      width={616}
+      title={mode !== 'manual'
+        ? (
+            <div className="cf-modal-title">
+              <span
+                className="cf-modal-title-mark"
+                style={activeBrief ? { '--callout-tint': activeBrief.color } as CSSProperties : undefined}
+                aria-hidden="true"
+              >
+                <Cloud size={18} />
+              </span>
+              <div className="cf-modal-title-body">
+                <div className="cf-modal-title-top">
+                  <h3>{t('{provider} 只读资产同步', { provider: providerTitle })}</h3>
+                  <button
+                    type="button"
+                    className="cf-back-manual-btn"
+                    onClick={() => setMode('manual')}
+                  >
+                    <ArrowLeft size={13} />
+                    <span>{t('返回手动录入')}</span>
+                  </button>
+                </div>
+                <p>{t('通过最小只读权限 API 自动导入名下公网 IP、Tailscale 组网地址与宿主实例关联。')}</p>
+              </div>
+            </div>
+          )
+        : t('新建 IP')}
+      onCancel={handleClose}
+      width={mode !== 'manual' ? 660 : 616}
       centered
       destroyOnHidden
       footer={null}
-      className="subscription-sheet-modal"
+      className={mode !== 'manual' ? 'cf-sync-modal' : 'subscription-sheet-modal'}
     >
-      {open && <IpWizardBody onClose={onClose} />}
+      {open && <IpWizardBody mode={mode} onModeChange={setMode} onClose={handleClose} />}
     </Modal>
   );
 }

@@ -17,8 +17,26 @@ test.afterEach(async ({ page }) => {
 
 test('enroll live server agent, inspect cockpit, archive, and delete', async ({ page }) => {
   await page.goto('/servers');
+
+  // Verify unified Cloud Server & Mesh Sync modal and provider tabs
+  await page.getByRole('button', { name: '云平台同步' }).click();
+  const syncDialog = page.getByRole('dialog', { name: /云平台服务器与组网同步/ });
+  await expect(syncDialog).toBeVisible();
+  await expect(syncDialog.getByRole('tab', { name: 'Tailscale' })).toHaveAttribute('aria-selected', 'true');
+  await syncDialog.getByRole('tab', { name: '搬瓦工 KiwiVM' }).click();
+  await expect(syncDialog.getByLabel('KiwiVM VEID')).toBeVisible();
+  await syncDialog.getByRole('tab', { name: 'Hetzner Cloud' }).click();
+  await expect(syncDialog.getByLabel('Hetzner Read-Only API Token')).toBeVisible();
+  await syncDialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(syncDialog).not.toBeVisible();
+
   await page.getByRole('button', { name: '新建服务器', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建服务器' });
+
+  // Verify 3rd segmented radio tab switches to CloudSync inline and back
+  await modal.getByRole('radio', { name: '云平台同步' }).click();
+  await expect(modal.getByRole('tab', { name: 'Tailscale' })).toBeVisible();
+  await modal.getByRole('radio', { name: '探针一键接入' }).click();
 
   await modal.getByRole('switch', { name: '读取 Docker 容器列表（特权接口 · 默认关闭）' }).click();
   const commandPre = modal.locator('.server-command-pre code');

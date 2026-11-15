@@ -131,16 +131,20 @@ type RegistrarDomainInfo struct {
 }
 
 type ZoneSnapshot struct {
-	ZoneID       string
-	Name         string
-	Status       string
-	Paused       bool
-	PlanName     string
-	AccountID    string
-	AccountName  string
-	NameServers  []string
-	Records      []SyncedDNSRecord
-	WorkerRoutes []string
+	ZoneID           string
+	Name             string
+	Status           string
+	Paused           bool
+	PlanName         string
+	AccountID        string
+	AccountName      string
+	NameServers      []string
+	Records          []SyncedDNSRecord
+	WorkerRoutes     []string
+	DNSProviderName  string
+	ConsoleURL       string
+	DefaultPresetKey string
+	RegistrarOnly    bool
 }
 
 type Snapshot struct {

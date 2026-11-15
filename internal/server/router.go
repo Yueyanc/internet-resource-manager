@@ -23,6 +23,7 @@ type handlerConfig struct {
 	ipProber         ipaddr.Prober
 	domainLookuper   domainname.Lookuper
 	cloudflareClient cloudsync.CloudflareClient
+	cloudRegistry    *cloudsync.Registry
 	agentBinDir      string
 	allowedOrigins   []string
 	trustProxy       bool
@@ -76,6 +77,14 @@ func WithCloudflareClient(client cloudsync.CloudflareClient) Option {
 	return func(cfg *handlerConfig) {
 		if client != nil {
 			cfg.cloudflareClient = client
+		}
+	}
+}
+
+func WithCloudSyncRegistry(reg *cloudsync.Registry) Option {
+	return func(cfg *handlerConfig) {
+		if reg != nil {
+			cfg.cloudRegistry = reg
 		}
 	}
 }
@@ -140,6 +149,9 @@ func buildHandlerConfig(opts ...Option) handlerConfig {
 	}
 	for _, opt := range opts {
 		opt(&cfg)
+	}
+	if cfg.cloudRegistry == nil {
+		cfg.cloudRegistry = cloudsync.NewDefaultRegistry(cfg.cloudflareClient)
 	}
 	return cfg
 }
@@ -207,7 +219,7 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 		api.Group(func(private chi.Router) {
 			private.Use(authentication.require)
 			domainRoutes(private, store, cfg.domainLookuper)
-			integrationRoutes(private, store, cfg.cloudflareClient, cfg.domainLookuper)
+			integrationRoutes(private, store, cfg.cloudflareClient, cfg.cloudRegistry, cfg.domainLookuper)
 			subscriptionRoutes(private, store)
 			accountRoutes(private, store)
 			vaultRoutes(private, store)

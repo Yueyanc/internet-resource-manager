@@ -114,3 +114,24 @@ DELETE FROM ip_accounts WHERE ip_id = ?;
 
 -- name: InsertIPAccount :exec
 INSERT INTO ip_accounts (ip_id, account_id, created_at) VALUES (?, ?, ?);
+
+-- name: UpdateIPSyncMeta :one
+UPDATE ips
+SET preset_key = ?,
+    provider = ?,
+    label = ?,
+    region = ?,
+    city = ?,
+    risk_level = ?,
+    purity_note = ?,
+    status = ?,
+    server_id = ?,
+    host_label = ?,
+    console_url = ?,
+    tags_json = ?,
+    provider_connection_id = ?,
+    external_id = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING *;
+

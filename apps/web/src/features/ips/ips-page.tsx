@@ -2,6 +2,7 @@ import {
   accountsOptions,
   deleteIp,
   domainsOptions,
+  integrationsOptions,
   type IpNode,
   ipsOptions,
   type IpUnlockService,
@@ -14,13 +15,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { App, Button, Dropdown, Empty, Segmented, Skeleton, Tooltip } from 'antd';
 import dayjs from 'dayjs';
-import { ArrowDownWideNarrow, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Cloud, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { useWorkspace } from '../../layouts/workspace-context';
 import { errorMessage } from '../../shared/errors';
 import { QueryError } from '../../shared/feedback';
+import { ProviderSyncModal } from '../integrations/provider-sync-modal';
 import { IpBreakdownCard } from './components/ip-breakdown-card';
 import { IpCard } from './components/ip-card';
 import { IpDetails } from './components/ip-details';
@@ -44,6 +46,7 @@ export function IpsPage() {
   const subscriptions = useQuery(subscriptionsOptions);
   const domains = useQuery(domainsOptions);
   const accounts = useQuery(accountsOptions);
+  const integrations = useQuery(integrationsOptions);
 
   const { newIp, search } = useWorkspace();
   const routeSearch = useSearch({ strict: false }) as { detail?: string };
@@ -64,6 +67,7 @@ export function IpsPage() {
   const [unlockFilter, setUnlockFilter] = useState<IpUnlockService>();
   const [editing, setEditing] = useState<IpNode>();
   const [detailId, setDetailId] = useState<string>();
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
 
   const effectiveDetailId = detailId ?? routeSearch.detail;
   const closeDetail = () => {
@@ -149,6 +153,19 @@ export function IpsPage() {
     () => (accounts.isSuccess ? accounts.data.items : []),
     [accounts.isSuccess, accounts.data],
   );
+  const ipConnections = useMemo(() => {
+    if (!integrations.isSuccess) return [];
+    const supported = new Set([
+      'tailscale',
+      'hetzner',
+      'digitalocean',
+      'bandwagon',
+      'aliyun',
+      'tencent',
+    ]);
+    return integrations.data.items.filter(item => supported.has(item.provider));
+  }, [integrations.isSuccess, integrations.data]);
+  const ipSyncHasError = ipConnections.some(item => item.status === 'error');
 
   const data = useMemo(
     () => (available ? computeIpMetrics(items, subscriptionList) : undefined),
@@ -304,6 +321,17 @@ export function IpsPage() {
             onOriginType={setOriginType}
             onRegion={setRegion}
           />
+          <Button
+            className={`cf-sync-trigger-btn ${ipConnections.length > 0 ? 'is-connected' : ''}`}
+            icon={<Cloud size={15} />}
+            onClick={() => setSyncModalOpen(true)}
+            disabled={!available}
+          >
+            <span>{t('云平台同步')}</span>
+            {ipConnections.length > 0 && (
+              <span className={`cf-live-dot ${ipSyncHasError ? 'is-error' : ''}`} aria-hidden="true" />
+            )}
+          </Button>
           <Button
             type="primary"
             className="new-resource-button"
@@ -505,6 +533,13 @@ export function IpsPage() {
           onClose={() => setEditing(undefined)}
         />
       )}
+
+      <ProviderSyncModal
+        open={syncModalOpen}
+        scope="ips"
+        accounts={accountList}
+        onClose={() => setSyncModalOpen(false)}
+      />
     </>
   );
 }

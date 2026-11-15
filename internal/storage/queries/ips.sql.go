@@ -41,7 +41,7 @@ func (q *Queries) DeleteIPDomains(ctx context.Context, ipID string) error {
 }
 
 const getIP = `-- name: GetIP :one
-SELECT id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at FROM ips WHERE id = ?
+SELECT id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id FROM ips WHERE id = ?
 `
 
 func (q *Queries) GetIP(ctx context.Context, id string) (Ip, error) {
@@ -92,6 +92,8 @@ func (q *Queries) GetIP(ctx context.Context, id string) (Ip, error) {
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
 	)
 	return i, err
 }
@@ -245,7 +247,7 @@ func (q *Queries) ListIPDomainsByIP(ctx context.Context, ipID string) ([]string,
 }
 
 const listIPs = `-- name: ListIPs :many
-SELECT id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at FROM ips
+SELECT id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id FROM ips
 ORDER BY CASE role WHEN 'dedicated' THEN 0 WHEN 'primary' THEN 1 WHEN 'service' THEN 2 ELSE 3 END, provider, address, id
 `
 
@@ -303,6 +305,8 @@ func (q *Queries) ListIPs(ctx context.Context) ([]Ip, error) {
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProviderConnectionID,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -321,7 +325,7 @@ const reviewIP = `-- name: ReviewIP :one
 UPDATE ips
 SET next_review_date = ?, last_reviewed_at = ?, updated_at = ?
 WHERE id = ? AND next_review_date = ? AND archived = 0
-RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at
+RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id
 `
 
 type ReviewIPParams struct {
@@ -386,6 +390,8 @@ func (q *Queries) ReviewIP(ctx context.Context, arg ReviewIPParams) (Ip, error) 
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
 	)
 	return i, err
 }
@@ -452,7 +458,7 @@ ON CONFLICT(id) DO UPDATE SET
     notes = excluded.notes,
     archived = excluded.archived,
     updated_at = excluded.updated_at
-RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at
+RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id
 `
 
 type SaveIPParams struct {
@@ -595,6 +601,8 @@ func (q *Queries) SaveIP(ctx context.Context, arg SaveIPParams) (Ip, error) {
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
 	)
 	return i, err
 }
@@ -604,7 +612,7 @@ UPDATE ips
 SET region = ?, city = ?, asn = ?, asn_org = ?, ptr_record = ?,
     lookup_source = ?, lookup_checked_at = ?, lookup_error = ?, updated_at = ?
 WHERE id = ?
-RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at
+RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id
 `
 
 type UpdateIPLookupParams struct {
@@ -679,6 +687,8 @@ func (q *Queries) UpdateIPLookup(ctx context.Context, arg UpdateIPLookupParams) 
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
 	)
 	return i, err
 }
@@ -687,7 +697,7 @@ const updateIPProbe = `-- name: UpdateIPProbe :one
 UPDATE ips
 SET probe_status = ?, probe_latency_ms = ?, probe_checked_at = ?, probe_error = ?, updated_at = ?
 WHERE id = ?
-RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at
+RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id
 `
 
 type UpdateIPProbeParams struct {
@@ -754,6 +764,119 @@ func (q *Queries) UpdateIPProbe(ctx context.Context, arg UpdateIPProbeParams) (I
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
+	)
+	return i, err
+}
+
+const updateIPSyncMeta = `-- name: UpdateIPSyncMeta :one
+UPDATE ips
+SET preset_key = ?,
+    provider = ?,
+    label = ?,
+    region = ?,
+    city = ?,
+    risk_level = ?,
+    purity_note = ?,
+    status = ?,
+    server_id = ?,
+    host_label = ?,
+    console_url = ?,
+    tags_json = ?,
+    provider_connection_id = ?,
+    external_id = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING id, preset_key, address, version, prefix_len, network_scope, category, provider, label, region, city, asn, asn_org, ptr_record, asn_type, origin_type, risk_level, purity_note, unlocks_json, tags_json, manual_locks_json, lookup_source, lookup_checked_at, lookup_error, role, status, review_cycle, review_days, next_review_date, last_reviewed_at, probe_mode, probe_port, probe_status, probe_latency_ms, probe_checked_at, probe_error, subscription_id, server_id, host_label, console_url, notes, archived, created_at, updated_at, provider_connection_id, external_id
+`
+
+type UpdateIPSyncMetaParams struct {
+	PresetKey            string         `json:"preset_key"`
+	Provider             string         `json:"provider"`
+	Label                string         `json:"label"`
+	Region               string         `json:"region"`
+	City                 string         `json:"city"`
+	RiskLevel            string         `json:"risk_level"`
+	PurityNote           string         `json:"purity_note"`
+	Status               string         `json:"status"`
+	ServerID             sql.NullString `json:"server_id"`
+	HostLabel            string         `json:"host_label"`
+	ConsoleUrl           string         `json:"console_url"`
+	TagsJson             string         `json:"tags_json"`
+	ProviderConnectionID sql.NullString `json:"provider_connection_id"`
+	ExternalID           string         `json:"external_id"`
+	UpdatedAt            string         `json:"updated_at"`
+	ID                   string         `json:"id"`
+}
+
+func (q *Queries) UpdateIPSyncMeta(ctx context.Context, arg UpdateIPSyncMetaParams) (Ip, error) {
+	row := q.db.QueryRowContext(ctx, updateIPSyncMeta,
+		arg.PresetKey,
+		arg.Provider,
+		arg.Label,
+		arg.Region,
+		arg.City,
+		arg.RiskLevel,
+		arg.PurityNote,
+		arg.Status,
+		arg.ServerID,
+		arg.HostLabel,
+		arg.ConsoleUrl,
+		arg.TagsJson,
+		arg.ProviderConnectionID,
+		arg.ExternalID,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i Ip
+	err := row.Scan(
+		&i.ID,
+		&i.PresetKey,
+		&i.Address,
+		&i.Version,
+		&i.PrefixLen,
+		&i.NetworkScope,
+		&i.Category,
+		&i.Provider,
+		&i.Label,
+		&i.Region,
+		&i.City,
+		&i.Asn,
+		&i.AsnOrg,
+		&i.PtrRecord,
+		&i.AsnType,
+		&i.OriginType,
+		&i.RiskLevel,
+		&i.PurityNote,
+		&i.UnlocksJson,
+		&i.TagsJson,
+		&i.ManualLocksJson,
+		&i.LookupSource,
+		&i.LookupCheckedAt,
+		&i.LookupError,
+		&i.Role,
+		&i.Status,
+		&i.ReviewCycle,
+		&i.ReviewDays,
+		&i.NextReviewDate,
+		&i.LastReviewedAt,
+		&i.ProbeMode,
+		&i.ProbePort,
+		&i.ProbeStatus,
+		&i.ProbeLatencyMs,
+		&i.ProbeCheckedAt,
+		&i.ProbeError,
+		&i.SubscriptionID,
+		&i.ServerID,
+		&i.HostLabel,
+		&i.ConsoleUrl,
+		&i.Notes,
+		&i.Archived,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalID,
 	)
 	return i, err
 }

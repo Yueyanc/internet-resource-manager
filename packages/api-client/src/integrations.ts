@@ -22,11 +22,52 @@ export const syncStatsSchema = z.object({
   domainsImported: z.number().int().nonnegative().default(0),
   domainsUpdated: z.number().int().nonnegative().default(0),
   recordsSynced: z.number().int().nonnegative().default(0),
+  serversImported: z.number().int().nonnegative().default(0),
+  serversUpdated: z.number().int().nonnegative().default(0),
+  ipsImported: z.number().int().nonnegative().default(0),
+  ipsUpdated: z.number().int().nonnegative().default(0),
   serverLinksAdded: z.number().int().nonnegative().default(0),
   ipLinksAdded: z.number().int().nonnegative().default(0),
   tunnelsTotal: z.number().int().nonnegative().default(0),
   tunnelsHealthy: z.number().int().nonnegative().default(0),
   pagesTotal: z.number().int().nonnegative().default(0),
+});
+
+export const providerFieldSpecSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  labelEn: z.string(),
+  placeholder: z.string(),
+  placeholderEn: z.string(),
+  secret: z.boolean(),
+  required: z.boolean(),
+  help: z.string().optional().default(''),
+  helpEn: z.string().optional().default(''),
+});
+
+export const providerMetaSpecSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  nameEn: z.string(),
+  subtitle: z.string(),
+  subtitleEn: z.string(),
+  color: z.string(),
+  targets: z.array(z.string()),
+  readOnlyMode: z.string(),
+  safetyNote: z.string(),
+  safetyNoteEn: z.string(),
+  stepTitle: z.string(),
+  stepTitleEn: z.string(),
+  stepDescription: z.string(),
+  stepDescriptionEn: z.string(),
+  primaryActionLabel: z.string(),
+  primaryActionLabelEn: z.string(),
+  primaryActionUrl: z.string(),
+  secondaryActionLabel: z.string().optional().default(''),
+  secondaryActionUrl: z.string().optional().default(''),
+  recommendedScopes: z.array(z.string()).default([]),
+  fields: z.array(providerFieldSpecSchema),
+  matchedPresets: z.array(z.string()).default([]),
 });
 
 export const providerConnectionSchema = z.object({
@@ -52,9 +93,19 @@ export const cloudflareSyncResponseSchema = z.object({
 
 export type CloudflarePermissionSpec = z.infer<typeof cloudflarePermissionSchema>;
 export type CloudflareTemplateInfo = z.infer<typeof cloudflareTemplateSchema>;
+export type ProviderFieldSpec = z.infer<typeof providerFieldSpecSchema>;
+export type ProviderMetaSpec = z.infer<typeof providerMetaSpecSchema>;
 export type SyncStats = z.infer<typeof syncStatsSchema>;
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
 export type CloudflareSyncResponse = z.infer<typeof cloudflareSyncResponseSchema>;
+
+export const integrationProvidersOptions = queryOptions({
+  queryKey: ['integrations', 'providers'],
+  queryFn: ({ signal }) =>
+    request('/integrations/providers', z.object({ items: z.array(providerMetaSpecSchema) }), { signal }),
+  staleTime: 5 * 60 * 1000,
+  retry: false,
+});
 
 export const cloudflareTemplateOptions = queryOptions({
   queryKey: ['integrations', 'cloudflare', 'template'],
@@ -69,6 +120,19 @@ export const integrationsOptions = queryOptions({
     request('/integrations', z.object({ items: z.array(providerConnectionSchema) }), { signal }),
   retry: false,
 });
+
+export function connectProviderIntegration(input: {
+  provider: string;
+  credentials: Record<string, string>;
+  label?: string;
+  accountId?: string;
+  syncNow?: boolean;
+}) {
+  return request('/integrations/connect', cloudflareSyncResponseSchema, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
 
 export function connectCloudflare(input: {
   apiToken: string;

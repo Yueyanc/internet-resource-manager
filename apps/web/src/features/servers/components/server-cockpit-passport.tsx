@@ -119,7 +119,9 @@ export function ServerCockpitPassport({
       ? t('心跳丢失 · 最后上报 {time}', { time: lastShort })
       : tel.agentStatus === 'snapshot'
         ? t('快照建档 · 采集于 {time}', { time: lastShort })
-        : t('仅台账登记 · 未接入实时探针');
+        : value.providerConnectionId
+          ? t('云平台 API 同步 · 未接入实时探针')
+          : t('仅台账登记 · 未接入实时探针');
 
   // Build secondary copy slots cleanly from available host endpoints
   const endpointSlots: { key: string; label: string; raw: string; display: string; copyLabel: string }[] = [];

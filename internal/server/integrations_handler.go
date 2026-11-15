@@ -65,6 +65,31 @@ func providerConnectionDTO(row queries.ProviderConnection) providerConnectionRes
 	}
 }
 
+func runProviderSync(
+	ctx context.Context,
+	store *storage.Store,
+	registry *cloudsync.Registry,
+	lookuper domainname.Lookuper,
+	conn queries.ProviderConnection,
+) (queries.ProviderConnection, storage.SyncStats, error) {
+	adapter, _, err := registry.Adapter(conn.Provider)
+	if err != nil {
+		updated, _ := store.RecordProviderSyncError(ctx, conn, err)
+		return updated, storage.SyncStats{}, err
+	}
+	creds, err := store.DecryptProviderCredentials(conn)
+	if err != nil {
+		updated, _ := store.RecordProviderSyncError(ctx, conn, err)
+		return updated, storage.SyncStats{}, err
+	}
+	snap, err := adapter.Fetch(ctx, creds)
+	if err != nil {
+		updated, _ := store.RecordProviderSyncError(ctx, conn, err)
+		return updated, storage.SyncStats{}, err
+	}
+	return store.ReconcileUnifiedSnapshot(ctx, conn, snap, lookuper)
+}
+
 func runCloudflareSync(
 	ctx context.Context,
 	store *storage.Store,
@@ -89,8 +114,19 @@ func integrationRoutes(
 	api chi.Router,
 	store *storage.Store,
 	cfClient cloudsync.CloudflareClient,
+	registry *cloudsync.Registry,
 	lookuper domainname.Lookuper,
 ) {
+	api.Get("/integrations/providers", func(w http.ResponseWriter, _ *http.Request) {
+		var specs []cloudsync.ProviderMetaSpec
+		if registry != nil {
+			specs = registry.Specs()
+		} else {
+			specs = cloudsync.ProviderCatalog()
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": specs})
+	})
+
 	api.Get("/integrations/cloudflare/template", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, cloudsync.CloudflareTokenTemplates())
 	})
@@ -106,6 +142,90 @@ func integrationRoutes(
 			items = append(items, providerConnectionDTO(row))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	})
+
+	api.Post("/integrations/connect", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Provider    string            `json:"provider"`
+			Credentials map[string]string `json:"credentials"`
+			Label       string            `json:"label"`
+			AccountID   string            `json:"accountId"`
+			SyncNow     *bool             `json:"syncNow"`
+		}
+		if !decodeJSON(w, r, &req) {
+			return
+		}
+		cleanLabel := strings.TrimSpace(req.Label)
+		if utf8.RuneCountInString(cleanLabel) > 64 {
+			writeError(w, http.StatusBadRequest, "invalid_integration", "连接备注名称不能超过 64 个字符")
+			return
+		}
+		if registry == nil {
+			writeError(w, http.StatusServiceUnavailable, "provider_unavailable", "云平台同步组件未就绪")
+			return
+		}
+		adapter, spec, err := registry.Adapter(req.Provider)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_integration", "不支持的云平台同步类型")
+			return
+		}
+		cleanCreds, tokenHint, err := adapter.ValidateCredentials(cloudsync.Credentials(req.Credentials))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_provider_token", "请完整填写 "+spec.Name+" 所需的只读鉴权凭据")
+			return
+		}
+
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Now().Add(3 * time.Minute))
+
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Minute)
+		defer cancel()
+
+		snap, err := adapter.Fetch(fetchCtx, cleanCreds)
+		if err != nil {
+			if cloudsync.IsAuthError(err) {
+				writeError(w, http.StatusBadRequest, "invalid_provider_token", spec.Name+" 凭据验证失败，请确认密钥有效且已授予只读权限")
+				return
+			}
+			writeError(w, http.StatusBadGateway, "provider_unavailable", "连接 "+spec.Name+" API 失败："+err.Error())
+			return
+		}
+
+		conn, err := store.CreateProviderConnection(
+			r.Context(),
+			spec.Key,
+			cleanLabel,
+			spec.Name,
+			req.AccountID,
+			tokenHint,
+			cleanCreds,
+			snap.Scopes,
+			snap.AccountNames,
+			storage.SyncStats{ZonesTotal: len(snap.Zones)},
+		)
+		if errors.Is(err, storage.ErrInvalidLink) {
+			writeError(w, http.StatusBadRequest, "invalid_link", "所选归属账号不存在")
+			return
+		}
+		if err != nil {
+			internalError(w, err)
+			return
+		}
+
+		syncNow := req.SyncNow == nil || *req.SyncNow
+		var stats *storage.SyncStats
+		if syncNow {
+			syncedConn, syncedStats, syncErr := store.ReconcileUnifiedSnapshot(fetchCtx, conn, snap, lookuper)
+			conn = syncedConn
+			if syncErr == nil {
+				stats = &syncedStats
+			}
+		}
+
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"connection": providerConnectionDTO(conn),
+			"syncStats":  stats,
+		})
 	})
 
 	api.Post("/integrations/cloudflare", func(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +301,12 @@ func integrationRoutes(
 			resourceError(w, err)
 			return
 		}
-		if conn.Provider != "cloudflare" || cfClient == nil {
+		if registry == nil {
+			writeError(w, http.StatusServiceUnavailable, "provider_unavailable", "云平台同步组件未就绪")
+			return
+		}
+		_, spec, err := registry.Adapter(conn.Provider)
+		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_integration", "不支持的同步提供商")
 			return
 		}
@@ -192,13 +317,22 @@ func integrationRoutes(
 		syncCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Minute)
 		defer cancel()
 
-		updatedConn, stats, syncErr := runCloudflareSync(syncCtx, store, cfClient, lookuper, conn)
+		var (
+			updatedConn queries.ProviderConnection
+			stats       storage.SyncStats
+			syncErr     error
+		)
+		if conn.Provider == "cloudflare" && cfClient != nil {
+			updatedConn, stats, syncErr = runCloudflareSync(syncCtx, store, cfClient, lookuper, conn)
+		} else {
+			updatedConn, stats, syncErr = runProviderSync(syncCtx, store, registry, lookuper, conn)
+		}
 		if syncErr != nil {
-			if errors.Is(syncErr, cloudsync.ErrInvalidToken) {
-				writeError(w, http.StatusBadRequest, "invalid_provider_token", "Cloudflare API 令牌已失效或被撤销，请重新生成")
+			if cloudsync.IsAuthError(syncErr) {
+				writeError(w, http.StatusBadRequest, "invalid_provider_token", spec.Name+" 鉴权凭据已失效或权限不足，请重新配置")
 				return
 			}
-			writeError(w, http.StatusBadGateway, "provider_sync_failed", "Cloudflare 同步失败："+syncErr.Error())
+			writeError(w, http.StatusBadGateway, "provider_sync_failed", spec.Name+" 同步失败："+syncErr.Error())
 			return
 		}
 

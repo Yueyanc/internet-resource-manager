@@ -3,6 +3,7 @@ import {
   deleteServer,
   domainsOptions,
   healthOptions,
+  integrationsOptions,
   ipsOptions,
   preferencesOptions,
   renewSubscription,
@@ -14,13 +15,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate, useSearch } from '@tanstack/react-router';
 import { App, Button, Dropdown, Empty, Segmented, Skeleton, Tooltip } from 'antd';
-import { ArrowDownWideNarrow, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Cloud, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { useWorkspace } from '../../layouts/workspace-context';
 import { errorMessage } from '../../shared/errors';
 import { QueryError } from '../../shared/feedback';
+import { ProviderSyncModal } from '../integrations/provider-sync-modal';
 import { monthlyCost } from '../subscriptions/utils/subscription-metrics';
 import { ServerAttentionCard } from './components/server-attention-card';
 import { ServerBreakdownCard } from './components/server-breakdown-card';
@@ -50,6 +52,7 @@ export function ServersPage() {
   const accounts = useQuery(accountsOptions);
   const domains = useQuery(domainsOptions);
   const ips = useQuery(ipsOptions);
+  const integrations = useQuery(integrationsOptions);
 
   const { newServer, search } = useWorkspace();
   const routeSearch = useSearch({ strict: false }) as { detail?: string };
@@ -67,6 +70,7 @@ export function ServersPage() {
   const [masked, setMasked] = useState(false);
   const [editing, setEditing] = useState<ServerHost>();
   const [connectingAgent, setConnectingAgent] = useState<ServerHost>();
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
 
   const openDetail = (item: ServerHost) => {
     void navigate({ to: '/servers/$serverId', params: { serverId: item.id } });
@@ -126,6 +130,19 @@ export function ServersPage() {
     () => (ips.isSuccess ? ips.data.items : []),
     [ips.isSuccess, ips.data],
   );
+  const serverConnections = useMemo(() => {
+    if (!integrations.isSuccess) return [];
+    const supported = new Set([
+      'tailscale',
+      'aliyun',
+      'tencent',
+      'hetzner',
+      'digitalocean',
+      'bandwagon',
+    ]);
+    return integrations.data.items.filter(item => supported.has(item.provider));
+  }, [integrations.isSuccess, integrations.data]);
+  const serverSyncHasError = serverConnections.some(item => item.status === 'error');
 
   const prefs = preferences.isSuccess ? preferences.data : undefined;
   const agentIngestEnabled = health.isSuccess ? health.data.capabilities.agentIngest : false;
@@ -253,6 +270,17 @@ export function ServersPage() {
             onKind={setKind}
             onRegion={setRegion}
           />
+          <Button
+            className={`cf-sync-trigger-btn ${serverConnections.length > 0 ? 'is-connected' : ''}`}
+            icon={<Cloud size={15} />}
+            onClick={() => setSyncModalOpen(true)}
+            disabled={!available}
+          >
+            <span>{t('云平台同步')}</span>
+            {serverConnections.length > 0 && (
+              <span className={`cf-live-dot ${serverSyncHasError ? 'is-error' : ''}`} aria-hidden="true" />
+            )}
+          </Button>
           <Button
             type="primary"
             className="new-resource-button"
@@ -460,6 +488,13 @@ export function ServersPage() {
           }}
         />
       )}
+
+      <ProviderSyncModal
+        open={syncModalOpen}
+        scope="servers"
+        accounts={accountList}
+        onClose={() => setSyncModalOpen(false)}
+      />
     </>
   );
 }

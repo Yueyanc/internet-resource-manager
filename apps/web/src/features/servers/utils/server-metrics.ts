@@ -215,11 +215,18 @@ export function computeTrafficUsage(value: ServerHost): {
 } {
   const rx = value.telemetry.trafficRxBytes;
   const tx = value.telemetry.trafficTxBytes;
-  const usedBytes = value.trafficRule === 'out_only' ? tx : rx + tx;
-  if (value.trafficRule === 'unlimited' || value.trafficGb <= 0) {
+  const agentUsed = value.trafficRule === 'out_only' ? tx : rx + tx;
+  const providerUsed = value.providerMeta?.trafficUsedBytes ?? 0;
+  const usedBytes = Math.max(agentUsed, providerUsed);
+  if (value.trafficRule === 'unlimited') {
     return { usedBytes, quotaBytes: 0, percent: null };
   }
-  const quotaBytes = value.trafficGb * 1024 * 1024 * 1024;
+  const quotaBytes = value.trafficGb > 0
+    ? value.trafficGb * 1024 * 1024 * 1024
+    : (value.providerMeta?.trafficTotalBytes ?? 0);
+  if (quotaBytes <= 0) {
+    return { usedBytes, quotaBytes: 0, percent: null };
+  }
   const percent = Math.min(100, Math.round((usedBytes / quotaBytes) * 1000) / 10);
   return { usedBytes, quotaBytes, percent };
 }

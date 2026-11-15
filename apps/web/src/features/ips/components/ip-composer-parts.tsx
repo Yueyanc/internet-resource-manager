@@ -4,6 +4,7 @@ import {
   type IpInput,
   type IpUnlockEntry,
   ipUnlockServices,
+  type ProviderConnection,
   type Subscription,
 } from '@irm/api-client';
 import {
@@ -26,6 +27,7 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  Cloud,
   FileText,
   Globe,
   Layers,
@@ -46,6 +48,11 @@ import { type CSSProperties, useMemo, useState } from 'react';
 import type { MessageKey } from '../../../app/messages';
 import { usePreferences } from '../../../app/preferences-context';
 import { accountDisplayTitle } from '../../accounts/utils/account-metrics';
+import {
+  type CloudSyncProviderKey,
+  PROVIDER_BRIEFS,
+  resolveIpSyncProvider,
+} from '../../integrations/provider-matching';
 import {
   filterIpPresets,
   findIpPreset,
@@ -206,6 +213,8 @@ export function IpPropertySheet({
   subscriptions,
   domains,
   accounts,
+  providerConnections = [],
+  onOpenProviderSync,
   isEditing,
   initialOpenExtras,
   submitting,
@@ -222,6 +231,8 @@ export function IpPropertySheet({
   subscriptions: Subscription[];
   domains: Domain[];
   accounts: Account[];
+  providerConnections?: ProviderConnection[];
+  onOpenProviderSync?: (provider: CloudSyncProviderKey) => void;
   isEditing?: boolean;
   initialOpenExtras?: IpExtraKey[];
   submitting?: boolean;
@@ -265,6 +276,23 @@ export function IpPropertySheet({
 
   const explicitPreset = findIpPreset(presetKey);
   const activePreset = explicitPreset ?? resolveIpPreset({ presetKey, provider: watchedProvider });
+
+  const syncProviderKey = useMemo(
+    () => resolveIpSyncProvider({
+      presetKey: presetKey || activePreset?.key,
+      provider: watchedProvider,
+    }),
+    [presetKey, activePreset?.key, watchedProvider],
+  );
+  const matchedConnections = useMemo(
+    () => (syncProviderKey ? providerConnections.filter(c => c.provider === syncProviderKey) : []),
+    [providerConnections, syncProviderKey],
+  );
+  const matchedHasError = matchedConnections.some(c => c.status === 'error');
+  const syncProviderBrief = syncProviderKey ? PROVIDER_BRIEFS[syncProviderKey] : undefined;
+  const syncProviderLabel = syncProviderBrief
+    ? (locale === 'en-US' ? syncProviderBrief.en : syncProviderBrief.zh)
+    : '';
 
   const lockSet = useMemo(() => new Set<IpLockableField>(watchedLocks ?? []), [watchedLocks]);
 
@@ -547,6 +575,49 @@ export function IpPropertySheet({
           </Popover>
         </div>
       </div>
+
+      {!isEditing && onOpenProviderSync && syncProviderKey && (
+        <div className="cf-composer-callout">
+          <div className="cf-composer-callout-meta">
+            <span
+              className="cf-composer-callout-icon"
+              style={syncProviderBrief ? { '--callout-tint': syncProviderBrief.color } as CSSProperties : undefined}
+              aria-hidden="true"
+            >
+              <Cloud size={16} />
+            </span>
+            <div className="cf-composer-callout-copy">
+              <strong>
+                {t(
+                  matchedConnections.length > 0
+                    ? '已接入 {provider} 只读同步'
+                    : '支持 {provider} 只读自动同步',
+                  { provider: syncProviderLabel },
+                )}
+              </strong>
+              <p>
+                {t(
+                  matchedConnections.length > 0
+                    ? '无需逐条手填，可一键从已绑定的 {provider} 账号同步公网 IP、Tailscale 组网地址与宿主节点。'
+                    : '无需逐条手填，通过 {provider} 只读鉴权一键批量导入名下公网 IP、组网地址与实例归属。',
+                  { provider: syncProviderLabel },
+                )}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="small"
+            onClick={() => onOpenProviderSync(syncProviderKey)}
+            className="cf-sync-trigger-btn is-compact"
+            icon={<Cloud size={13} />}
+          >
+            <span>{t('{provider} 同步', { provider: syncProviderLabel })}</span>
+            {matchedConnections.length > 0 && (
+              <span className={`cf-live-dot ${matchedHasError ? 'is-error' : ''}`} />
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Signature Strip: 3-Segment Lockable RDAP Geo-ASN Ribbon */}
       <div className="sheet-signature-strip ip-rdap-strip">

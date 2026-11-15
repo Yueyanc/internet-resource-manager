@@ -95,9 +95,25 @@ export const serverInputSchema = serverBaseSchema.extend({
   createSubscription: subscriptionInputSchema.optional(),
 });
 
+export const serverProviderMetaSchema = z.object({
+  provider: z.string().optional().default(''),
+  externalId: z.string().optional().default(''),
+  plan: z.string().optional().default(''),
+  trafficUsedBytes: z.number().nonnegative().optional().default(0),
+  trafficTotalBytes: z.number().nonnegative().optional().default(0),
+  trafficResetAt: z.string().optional().default(''),
+  lastSeenAt: z.string().optional().default(''),
+  clientVersion: z.string().optional().default(''),
+  suspended: z.boolean().optional().default(false),
+});
+
+export type ServerProviderMeta = z.infer<typeof serverProviderMetaSchema>;
+
 export const serverSchema = serverBaseSchema.extend({
   id: z.string(),
   presetKey: z.string(),
+  providerConnectionId: z.string().optional().default(''),
+  providerMeta: serverProviderMetaSchema.nullable().optional(),
   telemetry: serverTelemetrySchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

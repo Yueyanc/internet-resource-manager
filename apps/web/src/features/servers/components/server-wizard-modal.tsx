@@ -4,6 +4,7 @@ import {
   domainsOptions,
   getServerEnrollTokenStatus,
   importServerSnapshot,
+  integrationsOptions,
   ipsOptions,
   saveServer,
   type ServerHost,
@@ -28,6 +29,7 @@ import dayjs from 'dayjs';
 import {
   Activity,
   CheckCircle2,
+  Cloud,
   Copy,
   FileCode2,
   PenLine,
@@ -35,10 +37,16 @@ import {
   Sparkles,
   Terminal,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { type CSSProperties, useRef, useState } from 'react';
 
 import { usePreferences } from '../../../app/preferences-context';
 import { errorMessage } from '../../../shared/errors';
+import {
+  type CloudSyncProviderKey,
+  PROVIDER_BRIEFS,
+  resolveServerSyncProvider,
+} from '../../integrations/provider-matching';
+import { ProviderSyncPanel } from '../../integrations/provider-sync-modal';
 import {
   findServerPreset,
   type ServerPreset,
@@ -99,7 +107,8 @@ function ServerWizardBody({
   const client = useQueryClient();
   const { message } = App.useApp();
 
-  const [entryMode, setEntryMode] = useState<'agent' | 'manual'>('agent');
+  const [entryMode, setEntryMode] = useState<'agent' | 'manual' | 'sync'>('agent');
+  const [syncProvider, setSyncProvider] = useState<CloudSyncProviderKey>();
   const [agentSubMode, setAgentSubMode] = useState<'daemon' | 'snapshot'>('daemon');
   const [endpointUrl, setEndpointUrl] = useState(() => window.location.origin);
   const [dockerEnabled, setDockerEnabled] = useState(false);
@@ -122,14 +131,16 @@ function ServerWizardBody({
   const effectiveMode = targetServer ? 'agent' : entryMode;
 
   const subsQuery = useQuery({ ...subscriptionsOptions, enabled: effectiveMode === 'manual' });
-  const accountsQuery = useQuery({ ...accountsOptions, enabled: effectiveMode === 'manual' });
+  const accountsQuery = useQuery({ ...accountsOptions, enabled: !targetServer });
   const domainsQuery = useQuery({ ...domainsOptions, enabled: effectiveMode === 'manual' });
   const ipsQuery = useQuery({ ...ipsOptions, enabled: effectiveMode === 'manual' });
+  const integrationsQuery = useQuery({ ...integrationsOptions, enabled: !targetServer });
 
   const activeSubscriptions = subsQuery.isSuccess ? subsQuery.data.items.filter(item => !item.archived) : [];
   const activeAccounts = accountsQuery.isSuccess ? accountsQuery.data.items.filter(item => !item.archived) : [];
   const allDomains = domainsQuery.isSuccess ? domainsQuery.data.items : [];
   const activeIps = ipsQuery.isSuccess ? ipsQuery.data.items.filter(item => !item.archived) : [];
+  const providerConnections = integrationsQuery.isSuccess ? integrationsQuery.data.items : [];
 
   const needEnrollToken = effectiveMode === 'agent'
     && !importedServer
@@ -399,6 +410,15 @@ function ServerWizardBody({
             >
               {t('手动录入')}
             </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={entryMode === 'sync'}
+              className={`sub-sheet-seg-item ${entryMode === 'sync' ? 'is-active' : ''}`}
+              onClick={() => setEntryMode('sync')}
+            >
+              {t('云平台同步')}
+            </button>
           </div>
         </div>
       )}
@@ -498,38 +518,89 @@ function ServerWizardBody({
           </div>
 
           {!targetServer && (
-            <div className="form-grid mt-3">
-              <div className="ant-form-item mb-3">
-                <label className="server-mini-label">{t('节点备注名（选填，留空默认使用主机名）')}</label>
-                <Input
-                  value={agentNameHint}
-                  onChange={e => setAgentNameHint(e.target.value)}
-                  onBlur={() => {
-                    const trimmed = agentNameHint.trim();
-                    if (trimmed !== committedNameHint) setCommittedNameHint(trimmed);
-                  }}
-                  placeholder="Tokyo-Edge-01"
-                  maxLength={100}
-                />
+            <>
+              <div className="form-grid mt-3">
+                <div className="ant-form-item mb-3">
+                  <label className="server-mini-label">{t('节点备注名（选填，留空默认使用主机名）')}</label>
+                  <Input
+                    value={agentNameHint}
+                    onChange={e => setAgentNameHint(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = agentNameHint.trim();
+                      if (trimmed !== committedNameHint) setCommittedNameHint(trimmed);
+                    }}
+                    placeholder="Tokyo-Edge-01"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="ant-form-item mb-3">
+                  <label className="server-mini-label">{t('预设品牌（选填，留空将按公网 IP ASN 自动识别）')}</label>
+                  <Select
+                    className="w-full"
+                    value={presetKey}
+                    onChange={val => setPresetKey(val)}
+                    showSearch
+                    optionFilterProp="label"
+                    options={[
+                      { value: '', label: t('自动识别') },
+                      ...serverPresets.map(p => ({
+                        value: p.key,
+                        label: locale === 'en-US' ? p.provider.en : p.provider.zh,
+                      })),
+                    ]}
+                  />
+                </div>
               </div>
-              <div className="ant-form-item mb-3">
-                <label className="server-mini-label">{t('预设品牌（选填，留空将按公网 IP ASN 自动识别）')}</label>
-                <Select
-                  className="w-full"
-                  value={presetKey}
-                  onChange={val => setPresetKey(val)}
-                  showSearch
-                  optionFilterProp="label"
-                  options={[
-                    { value: '', label: t('自动识别') },
-                    ...serverPresets.map(p => ({
-                      value: p.key,
-                      label: locale === 'en-US' ? p.provider.en : p.provider.zh,
-                    })),
-                  ]}
-                />
-              </div>
-            </div>
+
+              {(() => {
+                const matchedKey = resolveServerSyncProvider({ presetKey });
+                if (!matchedKey) return null;
+                const brief = PROVIDER_BRIEFS[matchedKey];
+                const provLabel = locale === 'en-US' ? brief.en : brief.zh;
+                const matchedConns = providerConnections.filter(c => c.provider === matchedKey);
+                const hasErr = matchedConns.some(c => c.status === 'error');
+                return (
+                  <div className="cf-composer-callout mb-3">
+                    <div className="cf-composer-callout-meta">
+                      <span
+                        className="cf-composer-callout-icon"
+                        style={{ '--callout-tint': brief.color } as CSSProperties}
+                        aria-hidden="true"
+                      >
+                        <Cloud size={16} />
+                      </span>
+                      <div className="cf-composer-callout-copy">
+                        <strong>
+                          {t(
+                            matchedConns.length > 0
+                              ? '已接入 {provider} 只读同步'
+                              : '支持 {provider} 只读自动同步',
+                            { provider: provLabel },
+                          )}
+                        </strong>
+                        <p>
+                          {t('除了安装实时探针，也可通过 {provider} 只读 API 一键批量拉取名下全部实例与 IP 台账。', { provider: provLabel })}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setSyncProvider(matchedKey);
+                        setEntryMode('sync');
+                      }}
+                      className="cf-sync-trigger-btn is-compact"
+                      icon={<Cloud size={13} />}
+                    >
+                      <span>{t('{provider} 同步', { provider: provLabel })}</span>
+                      {matchedConns.length > 0 && (
+                        <span className={`cf-live-dot ${hasErr ? 'is-error' : ''}`} />
+                      )}
+                    </Button>
+                  </div>
+                );
+              })()}
+            </>
           )}
 
           <div className="server-docker-optin-row">
@@ -824,11 +895,31 @@ function ServerWizardBody({
               accounts={activeAccounts}
               domains={allDomains}
               ips={activeIps}
+              providerConnections={providerConnections}
+              onOpenProviderSync={(prov) => {
+                setSyncProvider(prov);
+                setEntryMode('sync');
+              }}
               submitting={manualMutation.isPending}
               onCancel={onClose}
             />
           </Form>
         </>
+      )}
+
+      {!enrolledServer && effectiveMode === 'sync' && (
+        <div className="pt-1">
+          <ProviderSyncPanel
+            key={syncProvider ?? 'all'}
+            active
+            scope="servers"
+            initialProvider={syncProvider}
+            accounts={activeAccounts}
+            initialAccountId={String(form.getFieldValue('accountId') ?? '')}
+            onCancel={onClose}
+            onSynced={onClose}
+          />
+        </div>
       )}
     </>
   );

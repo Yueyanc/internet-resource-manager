@@ -315,3 +315,268 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 		t.Fatalf("domains should remain intact with cleared providerConnectionId: %+v", afterPayload.Items)
 	}
 }
+
+type staticAdapter struct {
+	key  string
+	snap cloudsync.UnifiedSnapshot
+}
+
+func (a staticAdapter) ProviderKey() string { return a.key }
+
+func (a staticAdapter) ValidateCredentials(creds cloudsync.Credentials) (cloudsync.Credentials, string, error) {
+	if len(creds) == 0 {
+		return nil, "", cloudsync.ErrInvalidCredentials
+	}
+	return creds, "demo****hint", nil
+}
+
+func (a staticAdapter) Fetch(_ context.Context, _ cloudsync.Credentials) (cloudsync.UnifiedSnapshot, error) {
+	return a.snap, nil
+}
+
+func TestMultiProviderUnifiedConnectAndCrossProviderMerge(t *testing.T) {
+	store, err := storage.Open(t.Context(), filepath.Join(t.TempDir(), "multi.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cfClient := fakeCloudflareClient{
+		validToken: "cf_valid_token_1234567890",
+		verify: cloudsync.VerifySummary{
+			AccountNames: []string{"Main Edge"},
+			Scopes:       []string{"zones:read", "dns:read"},
+			ZonesCount:   1,
+		},
+		snapshot: cloudsync.Snapshot{
+			AccountNames: []string{"Main Edge"},
+			Scopes:       []string{"zones:read", "dns:read"},
+			Zones: []cloudsync.ZoneSnapshot{
+				{
+					ZoneID:      "cf-zone-1",
+					Name:        "stack.dev",
+					Status:      "active",
+					PlanName:    "Free",
+					AccountName: "Main Edge",
+					NameServers: []string{"ada.ns.cloudflare.com"},
+					Records: []cloudsync.SyncedDNSRecord{
+						{ID: "r1", Name: "stack.dev", Type: "A", Content: "95.216.10.20", Proxied: true},
+					},
+				},
+			},
+		},
+	}
+
+	reg := cloudsync.NewDefaultRegistry(cfClient)
+	reg.Register(staticAdapter{
+		key: "hetzner",
+		snap: cloudsync.UnifiedSnapshot{
+			Provider:     "hetzner",
+			AccountNames: []string{"Hetzner Prod"},
+			Scopes:       []string{"servers:read"},
+			Servers: []cloudsync.SyncedServer{
+				{
+					ExternalID:   "hz:101",
+					PresetKey:    "hetzner",
+					Name:         "edge-node-01",
+					Hostname:     "edge-node-01",
+					ProviderName: "Hetzner",
+					Kind:         "cloud_vps",
+					Status:       "active",
+					Region:       "DE",
+					OS:           "Ubuntu 24.04",
+					Arch:         "x86_64",
+					CPUCores:     4,
+					MemoryMB:     8192,
+					DiskGB:       80,
+					TrafficGB:    20000,
+					IPv4:         "95.216.10.20",
+					SSHPort:      22,
+					Meta: cloudsync.ServerProviderMeta{
+						Provider:          "hetzner",
+						ExternalID:        "hz:101",
+						TrafficUsedBytes:  500 * 1024 * 1024 * 1024,
+						TrafficTotalBytes: 20000 * 1024 * 1024 * 1024,
+					},
+				},
+			},
+			IPs: []cloudsync.SyncedIP{
+				{
+					ExternalID:     "hz-ip4:101",
+					PresetKey:      "hetzner",
+					Address:        "95.216.10.20",
+					NetworkScope:   "overseas_exit",
+					Category:       "cloud_vps",
+					ProviderName:   "Hetzner",
+					Label:          "edge-node-01",
+					Region:         "DE",
+					HostExternalID: "hz:101",
+				},
+			},
+		},
+	})
+	reg.Register(staticAdapter{
+		key: "tailscale",
+		snap: cloudsync.UnifiedSnapshot{
+			Provider:     "tailscale",
+			AccountNames: []string{"tail99.ts.net"},
+			Scopes:       []string{"devices:core:read"},
+			Servers: []cloudsync.SyncedServer{
+				{
+					ExternalID:   "ts:node-1",
+					PresetKey:    "custom",
+					Name:         "edge-node-01",
+					Hostname:     "edge-node-01",
+					ProviderName: "Tailscale",
+					Kind:         "cloud_vps",
+					Status:       "active",
+					PrivateIP:    "100.77.0.5",
+					Meta: cloudsync.ServerProviderMeta{
+						Provider:      "tailscale",
+						LastSeenAt:    "2026-11-15T14:00:00Z",
+						ClientVersion: "1.76.1",
+					},
+				},
+			},
+			IPs: []cloudsync.SyncedIP{
+				{
+					ExternalID:     "ts-ip4:node-1",
+					PresetKey:      "tailscale",
+					Address:        "100.77.0.5",
+					NetworkScope:   "overlay_private",
+					Category:       "overlay_mesh",
+					ProviderName:   "Tailscale",
+					Label:          "edge-node-01 (Tailnet)",
+					HostExternalID: "ts:node-1",
+				},
+			},
+		},
+	})
+	reg.Register(staticAdapter{
+		key: "porkbun",
+		snap: cloudsync.UnifiedSnapshot{
+			Provider:     "porkbun",
+			AccountNames: []string{"Porkbun Portfolio"},
+			Scopes:       []string{"domain/listAll"},
+			Registrar: map[string]cloudsync.RegistrarDomainInfo{
+				"stack.dev": {
+					Name:      "stack.dev",
+					ExpiresAt: "2029-01-15",
+					AutoRenew: true,
+					Privacy:   true,
+				},
+			},
+			Zones: []cloudsync.ZoneSnapshot{
+				{
+					ZoneID:           "porkbun:stack.dev",
+					Name:             "stack.dev",
+					Status:           "active",
+					DefaultPresetKey: "porkbun",
+					RegistrarOnly:    true,
+				},
+			},
+		},
+	})
+
+	h := server.NewHandler(
+		store,
+		nil,
+		server.WithCloudflareClient(cfClient),
+		server.WithCloudSyncRegistry(reg),
+		server.WithDomainLookuper(fakeDomainLookuper{}),
+	)
+
+	var sessionCookie *http.Cookie
+	doReq := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, "http://localhost"+path, strings.NewReader(body))
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		if sessionCookie != nil {
+			req.AddCookie(sessionCookie)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == "irm_session" {
+				sessionCookie = c
+			}
+		}
+		return rec
+	}
+
+	if res := doReq(http.MethodPost, "/api/v1/auth/setup", `{"username":"admin","password":"strong-password-123"}`); res.Code != http.StatusCreated {
+		t.Fatalf("setup = %d: %s", res.Code, res.Body)
+	}
+
+	// 1. Check /integrations/providers returns all 10 providers.
+	provRes := doReq(http.MethodGet, "/api/v1/integrations/providers", "")
+	if provRes.Code != http.StatusOK {
+		t.Fatalf("providers = %d: %s", provRes.Code, provRes.Body)
+	}
+	var provBody struct {
+		Items []cloudsync.ProviderMetaSpec `json:"items"`
+	}
+	if err := json.Unmarshal(provRes.Body.Bytes(), &provBody); err != nil || len(provBody.Items) < 10 {
+		t.Fatalf("expected >=10 provider specs, got %d (%v)", len(provBody.Items), err)
+	}
+
+	// 2. Connect Hetzner -> imports 1 server + 1 public IP.
+	if res := doReq(http.MethodPost, "/api/v1/integrations/connect", `{"provider":"hetzner","credentials":{"apiToken":"hz_secret_1234567890"}}`); res.Code != http.StatusCreated {
+		t.Fatalf("connect hetzner = %d: %s", res.Code, res.Body)
+	}
+	// 3. Connect Tailscale -> merges PrivateIP + LastSeenAt onto edge-node-01 WITHOUT losing Hetzner TrafficTotalBytes!
+	if res := doReq(http.MethodPost, "/api/v1/integrations/connect", `{"provider":"tailscale","credentials":{"apiToken":"tskey-api-123456"}}`); res.Code != http.StatusCreated {
+		t.Fatalf("connect tailscale = %d: %s", res.Code, res.Body)
+	}
+	// 4. Connect Cloudflare -> imports stack.dev with DNS record auto-linked to edge-node-01 and 95.216.10.20.
+	if res := doReq(http.MethodPost, "/api/v1/integrations/connect", `{"provider":"cloudflare","credentials":{"apiToken":"cf_valid_token_1234567890"}}`); res.Code != http.StatusCreated {
+		t.Fatalf("connect cloudflare = %d: %s", res.Code, res.Body)
+	}
+	// 5. Connect Porkbun -> enriches stack.dev Registrar + ExpireDate WITHOUT wiping Cloudflare DNS records!
+	if res := doReq(http.MethodPost, "/api/v1/integrations/connect", `{"provider":"porkbun","credentials":{"apiKey":"pk1_demo","secretApiKey":"sk1_demo"}}`); res.Code != http.StatusCreated {
+		t.Fatalf("connect porkbun = %d: %s", res.Code, res.Body)
+	}
+
+	srvRes := doReq(http.MethodGet, "/api/v1/servers", "")
+	var srvPayload struct {
+		Items []struct {
+			Name         string                        `json:"name"`
+			Provider     string                        `json:"provider"`
+			IPv4         string                        `json:"ipv4"`
+			PrivateIP    string                        `json:"privateIp"`
+			IPIDs        []string                      `json:"ipIds"`
+			ProviderMeta *cloudsync.ServerProviderMeta `json:"providerMeta"`
+		} `json:"items"`
+	}
+	_ = json.Unmarshal(srvRes.Body.Bytes(), &srvPayload)
+	if len(srvPayload.Items) != 1 {
+		t.Fatalf("expected Hetzner + Tailscale to merge into 1 server, got %d: %+v", len(srvPayload.Items), srvPayload.Items)
+	}
+	mergedSrv := srvPayload.Items[0]
+	if mergedSrv.IPv4 != "95.216.10.20" || mergedSrv.PrivateIP != "100.77.0.5" || len(mergedSrv.IPIDs) != 2 {
+		t.Fatalf("expected merged IPv4 + Tailnet PrivateIP + 2 linked IPs, got %+v", mergedSrv)
+	}
+	if mergedSrv.ProviderMeta == nil || mergedSrv.ProviderMeta.TrafficTotalBytes == 0 || mergedSrv.ProviderMeta.LastSeenAt == "" {
+		t.Fatalf("expected merged Hetzner traffic + Tailscale lastSeenAt in ProviderMeta, got %+v", mergedSrv.ProviderMeta)
+	}
+
+	domRes := doReq(http.MethodGet, "/api/v1/domains", "")
+	var domPayload struct {
+		Items []struct {
+			Name       string                      `json:"name"`
+			Registrar  string                      `json:"registrar"`
+			ExpireDate string                      `json:"expireDate"`
+			DNSRecords []cloudsync.SyncedDNSRecord `json:"dnsRecords"`
+			ServerIDs  []string                    `json:"serverIds"`
+		} `json:"items"`
+	}
+	_ = json.Unmarshal(domRes.Body.Bytes(), &domPayload)
+	if len(domPayload.Items) != 1 {
+		t.Fatalf("expected 1 merged domain stack.dev, got %+v", domPayload.Items)
+	}
+	mergedDom := domPayload.Items[0]
+	if mergedDom.Registrar != "Porkbun" || mergedDom.ExpireDate != "2029-01-15" || len(mergedDom.DNSRecords) != 1 || len(mergedDom.ServerIDs) != 1 {
+		t.Fatalf("expected Porkbun registrar/expiry + preserved Cloudflare DNS records + linked Hetzner server: %+v", mergedDom)
+	}
+}

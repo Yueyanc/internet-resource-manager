@@ -16,7 +16,11 @@ import { useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { errorMessage } from '../../shared/errors';
-import { CloudflareSyncPanel } from './components/cloudflare-sync-modal';
+import {
+  type CloudSyncProviderKey,
+  PROVIDER_BRIEFS,
+} from '../integrations/provider-matching';
+import { ProviderSyncPanel } from '../integrations/provider-sync-modal';
 import {
   type DomainComposerValues,
   DomainPropertySheet,
@@ -24,7 +28,7 @@ import {
 import type { DomainPreset } from './presets/domain-presets';
 import { normalizeDomainDraft } from './utils/domain-metrics';
 
-export type DomainModalMode = 'manual' | 'cloudflare';
+export type DomainModalMode = 'manual' | CloudSyncProviderKey;
 
 function DomainModalBody({
   mode,
@@ -52,8 +56,7 @@ function DomainModalBody({
   const activeSubscriptions = (subscriptionsQuery.isSuccess ? subscriptionsQuery.data.items : []).filter(s => !s.archived);
   const activeServers = (serversQuery.isSuccess ? serversQuery.data.items : []).filter(s => !s.archived);
   const activeIps = (ipsQuery.isSuccess ? ipsQuery.data.items : []).filter(ip => !ip.archived);
-  const cfConnections = (integrationsQuery.data?.items ?? []).filter(item => item.provider === 'cloudflare');
-  const cfHasError = cfConnections.some(item => item.status === 'error');
+  const providerConnections = integrationsQuery.data?.items ?? [];
   const watchedAccountId = (Form.useWatch('registrarAccountId', form) as string | undefined) ?? '';
 
   const mutation = useMutation({
@@ -199,18 +202,20 @@ function DomainModalBody({
             accounts={activeAccounts}
             servers={activeServers}
             ips={activeIps}
-            cloudflareConnectedCount={cfConnections.length}
-            cloudflareHasError={cfHasError}
-            onOpenCloudflareSync={() => onModeChange('cloudflare')}
+            providerConnections={providerConnections}
+            onOpenProviderSync={prov => onModeChange(prov)}
             submitting={mutation.isPending}
             onCancel={onClose}
           />
         </Form>
       </div>
 
-      {mode === 'cloudflare' && (
-        <CloudflareSyncPanel
+      {mode !== 'manual' && (
+        <ProviderSyncPanel
+          key={mode}
           active
+          scope="domains"
+          initialProvider={mode}
           accounts={activeAccounts}
           initialAccountId={watchedAccountId}
           onCancel={onClose}
@@ -222,7 +227,7 @@ function DomainModalBody({
 }
 
 export function DomainModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = usePreferences();
+  const { t, locale } = usePreferences();
   const [mode, setMode] = useState<DomainModalMode>('manual');
 
   const handleClose = () => {
@@ -230,9 +235,14 @@ export function DomainModal({ open, onClose }: { open: boolean; onClose: () => v
     onClose();
   };
 
+  const activeBrief = mode !== 'manual' ? PROVIDER_BRIEFS[mode] : undefined;
+  const providerTitle = activeBrief
+    ? (locale === 'en-US' ? activeBrief.en : activeBrief.zh)
+    : '';
+
   return (
     <Modal
-      title={mode === 'cloudflare'
+      title={mode !== 'manual'
         ? (
             <div className="cf-modal-title">
               <span className="cf-brand-badge" aria-hidden="true">
@@ -240,7 +250,7 @@ export function DomainModal({ open, onClose }: { open: boolean; onClose: () => v
               </span>
               <div className="cf-modal-title-body">
                 <div className="cf-modal-title-top">
-                  <h3>{t('Cloudflare 只读资产同步')}</h3>
+                  <h3>{t('{provider} 只读资产同步', { provider: providerTitle })}</h3>
                   <button
                     type="button"
                     className="cf-back-manual-btn"
@@ -250,7 +260,7 @@ export function DomainModal({ open, onClose }: { open: boolean; onClose: () => v
                     <span>{t('返回手动录入')}</span>
                   </button>
                 </div>
-                <p>{t('通过严格只读 API 令牌自动导入托管域名、Registrar 到期日、DNS 解析记录与 Zero Trust 隧道，并自动串联名下服务器与 IP 节点。')}</p>
+                <p>{t('通过最小只读权限 API 自动导入名下托管域名、到期日与 DNS 解析记录，并自动串联名下服务器与 IP 节点。')}</p>
               </div>
             </div>
           )
@@ -258,18 +268,12 @@ export function DomainModal({ open, onClose }: { open: boolean; onClose: () => v
       open={open}
       onCancel={handleClose}
       footer={null}
-      width={mode === 'cloudflare' ? 620 : 576}
+      width={mode !== 'manual' ? 660 : 616}
       centered
       destroyOnHidden
-      className="subscription-sheet-modal"
+      className={mode !== 'manual' ? 'cf-sync-modal' : 'subscription-sheet-modal'}
     >
-      {open && (
-        <DomainModalBody
-          mode={mode}
-          onModeChange={setMode}
-          onClose={handleClose}
-        />
-      )}
+      {open && <DomainModalBody mode={mode} onModeChange={setMode} onClose={handleClose} />}
     </Modal>
   );
 }

@@ -17,8 +17,30 @@ test.afterEach(async ({ page }) => {
 
 test('create IP node with unlock matrix, privacy mask, archive, and delete', async ({ page }) => {
   await page.goto('/ips');
+
+  // Verify unified Cloud IP & Mesh Node Sync modal
+  await page.getByRole('button', { name: '云平台同步' }).click();
+  const syncDialog = page.getByRole('dialog', { name: /云平台 IP 与组网节点同步/ });
+  await expect(syncDialog).toBeVisible();
+  await expect(syncDialog.getByRole('tab', { name: 'Tailscale' })).toHaveAttribute('aria-selected', 'true');
+  await syncDialog.getByRole('tab', { name: '腾讯云 / DNSPod' }).click();
+  await expect(syncDialog.getByLabel('CAM SecretId')).toBeVisible();
+  await syncDialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(syncDialog).not.toBeVisible();
+
   await page.getByRole('button', { name: '新建 IP', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建 IP' });
+
+  // Selecting Tailscale preset surfaces inline Tailscale Sync callout and switches cleanly
+  await modal.getByRole('button', { name: '更换图标' }).click();
+  await page.getByLabel('搜索商家或线路预设').fill('tailscale');
+  await page.locator('.preset-popover-item').filter({ hasText: 'Tailscale' }).first().click();
+  await expect(modal.getByText('支持 Tailscale 只读自动同步')).toBeVisible();
+  await modal.getByRole('button', { name: 'Tailscale 同步' }).click();
+  const inlineTsDialog = page.getByRole('dialog', { name: /Tailscale 只读资产同步/ });
+  await expect(inlineTsDialog).toBeVisible();
+  await inlineTsDialog.getByRole('button', { name: '返回手动录入' }).first().click();
+  await expect(modal).toBeVisible();
 
   await modal.getByRole('button', { name: '更换图标' }).click();
   await page.getByLabel('搜索商家或线路预设').fill('att');

@@ -83,3 +83,37 @@ UPDATE ips SET server_id = NULL, updated_at = ? WHERE server_id = ?;
 
 -- name: AssignIPToServer :exec
 UPDATE ips SET server_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: UpdateServerSyncMeta :one
+UPDATE servers
+SET preset_key = ?,
+    name = ?,
+    hostname = ?,
+    provider = ?,
+    kind = ?,
+    status = ?,
+    region = ?,
+    datacenter = ?,
+    os = ?,
+    arch = ?,
+    cpu_cores = ?,
+    memory_mb = ?,
+    disk_gb = ?,
+    disk_type = ?,
+    bandwidth_mbps = ?,
+    traffic_gb = ?,
+    traffic_reset_day = ?,
+    ipv4 = ?,
+    ipv6 = ?,
+    private_ip = ?,
+    console_url = ?,
+    account_id = ?,
+    expire_date = ?,
+    tags_json = ?,
+    provider_connection_id = ?,
+    external_id = ?,
+    provider_meta_json = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING *;
+
