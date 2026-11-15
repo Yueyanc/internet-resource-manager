@@ -71,26 +71,33 @@ type AgentEnrollToken struct {
 }
 
 type Domain struct {
-	ID                 string         `json:"id"`
-	Name               string         `json:"name"`
-	Notes              string         `json:"notes"`
-	CreatedAt          string         `json:"created_at"`
-	PresetKey          string         `json:"preset_key"`
-	Registrar          string         `json:"registrar"`
-	DnsProvider        string         `json:"dns_provider"`
-	Purpose            string         `json:"purpose"`
-	Status             string         `json:"status"`
-	ExpireDate         string         `json:"expire_date"`
-	AutoRenew          int64          `json:"auto_renew"`
-	WhoisPrivacy       int64          `json:"whois_privacy"`
-	IcpStatus          string         `json:"icp_status"`
-	IcpNumber          string         `json:"icp_number"`
-	ManagementUrl      string         `json:"management_url"`
-	SubscriptionID     sql.NullString `json:"subscription_id"`
-	RegistrarAccountID sql.NullString `json:"registrar_account_id"`
-	TagsJson           string         `json:"tags_json"`
-	Archived           int64          `json:"archived"`
-	UpdatedAt          string         `json:"updated_at"`
+	ID                   string         `json:"id"`
+	Name                 string         `json:"name"`
+	Notes                string         `json:"notes"`
+	CreatedAt            string         `json:"created_at"`
+	PresetKey            string         `json:"preset_key"`
+	Registrar            string         `json:"registrar"`
+	DnsProvider          string         `json:"dns_provider"`
+	Purpose              string         `json:"purpose"`
+	Status               string         `json:"status"`
+	ExpireDate           string         `json:"expire_date"`
+	AutoRenew            int64          `json:"auto_renew"`
+	WhoisPrivacy         int64          `json:"whois_privacy"`
+	IcpStatus            string         `json:"icp_status"`
+	IcpNumber            string         `json:"icp_number"`
+	ManagementUrl        string         `json:"management_url"`
+	SubscriptionID       sql.NullString `json:"subscription_id"`
+	RegistrarAccountID   sql.NullString `json:"registrar_account_id"`
+	TagsJson             string         `json:"tags_json"`
+	Archived             int64          `json:"archived"`
+	UpdatedAt            string         `json:"updated_at"`
+	ProviderConnectionID sql.NullString `json:"provider_connection_id"`
+	ExternalZoneID       string         `json:"external_zone_id"`
+	DnsRecordsJson       string         `json:"dns_records_json"`
+	EdgeMetaJson         string         `json:"edge_meta_json"`
+	LookupSource         string         `json:"lookup_source"`
+	LookupCheckedAt      string         `json:"lookup_checked_at"`
+	LookupError          string         `json:"lookup_error"`
 }
 
 type Ip struct {
@@ -156,6 +163,24 @@ type Preference struct {
 	ID           int64  `json:"id"`
 	BaseCurrency string `json:"base_currency"`
 	RatesJson    string `json:"rates_json"`
+}
+
+type ProviderConnection struct {
+	ID                  string         `json:"id"`
+	Provider            string         `json:"provider"`
+	Label               string         `json:"label"`
+	AccountID           sql.NullString `json:"account_id"`
+	TokenHint           string         `json:"token_hint"`
+	SecretCiphertext    []byte         `json:"secret_ciphertext"`
+	SecretNonce         []byte         `json:"secret_nonce"`
+	ScopesJson          string         `json:"scopes_json"`
+	ExternalAccountName string         `json:"external_account_name"`
+	Status              string         `json:"status"`
+	LastSyncedAt        string         `json:"last_synced_at"`
+	LastError           string         `json:"last_error"`
+	StatsJson           string         `json:"stats_json"`
+	CreatedAt           string         `json:"created_at"`
+	UpdatedAt           string         `json:"updated_at"`
 }
 
 type Server struct {

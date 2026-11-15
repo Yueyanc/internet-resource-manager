@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	projectdb "github.com/Yueyanc/internet-resource-manager/db"
+	"github.com/Yueyanc/internet-resource-manager/internal/cloudsync"
 	"github.com/Yueyanc/internet-resource-manager/internal/storage/queries"
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -23,6 +24,7 @@ type Store struct {
 	db      *sql.DB
 	queries *queries.Queries
 	dbPath  string
+	keyRing *cloudsync.KeyRing
 }
 
 // ApplyPendingRestore atomically swaps in `<dbPath>.restore` if staged by a system rollback
@@ -121,7 +123,15 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if _, err := provider.Up(ctx); err != nil {
 		return closeWithError(fmt.Errorf("migrate database: %w", err))
 	}
-	return &Store{db: database, queries: queries.New(database), dbPath: absPath}, nil
+	keyDir := ":memory:"
+	if strings.TrimSpace(path) != ":memory:" && !strings.HasPrefix(strings.TrimSpace(path), "file::memory:") {
+		keyDir = filepath.Dir(absPath)
+	}
+	kr, err := cloudsync.LoadOrCreateKeyRing(keyDir)
+	if err != nil {
+		return closeWithError(fmt.Errorf("load integration keyring: %w", err))
+	}
+	return &Store{db: database, queries: queries.New(database), dbPath: absPath, keyRing: kr}, nil
 }
 
 func (s *Store) Close() error                   { return s.db.Close() }

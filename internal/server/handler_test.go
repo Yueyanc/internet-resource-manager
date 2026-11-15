@@ -35,7 +35,7 @@ func TestHealthReportsActualDatabaseAndUnimplementedCapabilities(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Database != "ok" || !body.Capabilities.Auth || body.Capabilities.DomainLookup || !body.Capabilities.AgentIngest {
+	if body.Database != "ok" || !body.Capabilities.Auth || !body.Capabilities.DomainLookup || !body.Capabilities.AgentIngest {
 		t.Fatalf("unexpected health: %+v", body)
 	}
 	if err := store.Close(); err != nil {

@@ -73,9 +73,8 @@ Go 共用根 `go.mod/go.sum`；JS 使用 pnpm workspace 和唯一锁文件。
 密码与令牌散列放 internal/auth，存储放 internal/storage。
 HTTP DTO 与数据库模型分开，错误不向客户端泄露 SQL、内部路径或密钥。
 
-当前健康接口查询数据库真实状态，返回 `auth=true`、`agentIngest=true`、`domainLookup=false`。
-域名输入做 IDNA 规范化、大小写统一、长度和标签校验、重复检查；此验证只说明
-格式合法，不代表域名已注册、归用户所有或可以查询到到期日。
+当前健康接口查询数据库真实状态，返回 `auth=true`、`agentIngest=true`、`domainLookup=true`。
+域名输入做 IDNA 规范化、大小写统一、长度和标签校验、重复检查；元数据查询优先走防 SSRF 的 OpenRDAP HTTPS，缺失 RDAP 引导的后缀（如 `.cn`）自动回退至防 SSRF 的 TCP Port 43 WHOIS，保留来源与核验时间。`00013_cloudflare_and_domain_sync` 引入 `provider_connections`，以独立 `integration.key`（或 `IRM_INTEGRATION_KEY`）执行 `AES-256-GCM` + AAD 绑定加密存储严格只读的第三方 API 令牌（当前接入 Cloudflare），无损导入 Zone、Registrar 到期日、DNS 记录、Tunnel 与 Pages 并在同一事务内自动串联匹配的服务器与 IP 节点。
 
 所有资源、菜单计数、汇率接口均需数据库会话；仅 health、auth/status、setup、login、logout
 公开。auth/status 会验证 Cookie，但不会向未登录者暴露用户名。setup 在管理员存在后返回

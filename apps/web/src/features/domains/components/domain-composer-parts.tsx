@@ -6,11 +6,14 @@ import {
   type DomainPurpose,
   type DomainStatus,
   type IpNode,
+  lookupDomainPreview,
   type ServerHost,
   type Subscription,
   type SubscriptionInput,
 } from '@irm/api-client';
+import { useMutation } from '@tanstack/react-query';
 import {
+  App,
   Button,
   DatePicker,
   Dropdown,
@@ -35,6 +38,7 @@ import {
   Layers,
   Link2,
   Network,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -47,6 +51,7 @@ import { type CSSProperties, useMemo, useState } from 'react';
 
 import type { MessageKey } from '../../../app/messages';
 import { usePreferences } from '../../../app/preferences-context';
+import { errorMessage } from '../../../shared/errors';
 import { ipDisplayTitle } from '../../ips/utils/ip-metrics';
 import { AccountQuickDropdown } from '../../subscriptions/components/subscription-account-fields';
 import { cycles } from '../../subscriptions/utils/subscription-metrics';
@@ -241,10 +246,46 @@ export function DomainPropertySheet({
   submitting: boolean;
   onCancel: () => void;
 }) {
-  const { t } = usePreferences();
+  const { t, locale } = usePreferences();
+  const { message } = App.useApp();
   const [presetPopoverOpen, setPresetPopoverOpen] = useState(false);
   const [billingPopoverOpen, setBillingPopoverOpen] = useState(false);
   const [openExtras, setOpenExtras] = useState<Set<DomainExtraKey>>(() => new Set(initialOpenExtras));
+
+  const lookupMutation = useMutation({
+    mutationFn: (fqdn: string) => lookupDomainPreview(fqdn),
+    onSuccess: (res) => {
+      if (res.presetKey) {
+        const matched = findDomainPreset(res.presetKey);
+        if (matched) {
+          onSelectPreset(matched);
+        }
+        else {
+          form.setFieldValue('presetKey', res.presetKey);
+        }
+      }
+      if (res.registrar) {
+        form.setFieldValue('registrar', res.registrar);
+      }
+      if (res.dnsProvider) {
+        form.setFieldValue('dnsProvider', res.dnsProvider);
+      }
+      if (res.expireDate) {
+        const exp = dayjs(res.expireDate);
+        if (exp.isValid()) {
+          form.setFieldValue('expireDate', exp);
+          form.setFieldValue('subDueDate', exp);
+        }
+        void message.success(t('已自动回填注册商与到期日（{source}）', { source: res.source.toUpperCase() }));
+      }
+      else {
+        void message.info(t('已查询域名信息（注册商暂未公开到期日）'));
+      }
+    },
+    onError: (err) => {
+      void message.error(errorMessage(err, locale));
+    },
+  });
 
   const watchedName = (Form.useWatch('name', form) as string | undefined) ?? '';
   const watchedRegistrar = (Form.useWatch('registrar', form) as string | undefined) ?? '';
@@ -370,6 +411,16 @@ export function DomainPropertySheet({
         </div>
 
         <div className="sheet-hero-right">
+          <button
+            type="button"
+            disabled={parsed.state !== 'valid' || lookupMutation.isPending || submitting}
+            className="sheet-action-pill"
+            onClick={() => lookupMutation.mutate(parsed.clean)}
+          >
+            <RefreshCw size={12} className={lookupMutation.isPending ? 'animate-spin' : ''} />
+            <span>{t('自动查询 RDAP')}</span>
+          </button>
+
           <span
             className={`sheet-status-pill ${
               parsed.state === 'valid'

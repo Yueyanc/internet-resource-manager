@@ -15,25 +15,55 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test('create domain with preset, mask, edit/archive, delete, and surface API errors', async ({ page }) => {
+test('create domain with RDAP auto-fill, inspect Cloudflare sync modal, edit/archive, delete, and surface API errors', async ({ page }) => {
   await page.goto('/domains');
   await expect(page.getByRole('heading', { name: /域名/ })).toBeVisible();
+
+  // 1. Open Cloudflare Read-Only Sync Modal and verify prefilled template link & scopes
+  await page.getByRole('button', { name: 'Cloudflare 同步' }).click();
+  const cfDialog = page.getByRole('dialog', { name: /Cloudflare 只读资产同步/ });
+  await expect(cfDialog).toBeVisible();
+  const templateLink = cfDialog.getByRole('link', { name: '一键打开 Cloudflare 只读令牌模板' });
+  await expect(templateLink).toHaveAttribute('href', /dash\.cloudflare\.com\/profile\/api-tokens/);
+  await expect(cfDialog).toContainText('Zone · Read');
+  await expect(cfDialog).toContainText('DNS · Read');
+  await cfDialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(cfDialog).not.toBeVisible();
+
+  // 2. Mock RDAP/WHOIS preview for deterministic offline E2E auto-fill
+  await page.route('**/api/v1/domains/lookup-preview', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        domain: 'e2e.craftstudio.io',
+        apexDomain: 'craftstudio.io',
+        registrar: 'Cloudflare',
+        dnsProvider: 'Cloudflare DNS',
+        presetKey: 'cloudflare',
+        expireDate: '2028-06-15',
+        nameServers: ['ada.ns.cloudflare.com', 'bob.ns.cloudflare.com'],
+        source: 'rdap',
+        checkedAt: '2026-11-15T12:00:00Z',
+      }),
+    });
+  });
 
   const domain = `e2e-${Date.now()}.craftstudio.io`;
   await page.getByRole('button', { name: '新建域名', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建域名' });
 
-  await modal.getByRole('button', { name: '更换图标' }).click();
-  await page.getByLabel('搜索注册商或解析商预设').fill('cloudflare');
-  await page.locator('.preset-popover-item').filter({ hasText: 'Cloudflare' }).first().click();
-
   await modal.getByLabel('域名', { exact: true }).fill(`https://${domain}/docs`);
+  await modal.getByRole('button', { name: '自动查询 RDAP' }).click();
+  await expect(page.getByText(/已自动回填注册商与到期日/)).toBeVisible();
+
   await modal.getByRole('button', { name: '保存域名', exact: true }).click();
   await expect(modal).not.toBeVisible();
 
   const card = page.locator('.domain-card').filter({ hasText: domain });
   await expect(card).toContainText('Cloudflare');
   await expect(card).toContainText('.IO');
+  await expect(card).toContainText('2028-06-15');
 
   await page.getByRole('button', { name: '隐藏域名前缀', exact: true }).click();
   await expect(page.locator('.domain-card').first()).toContainText('e2***.io');

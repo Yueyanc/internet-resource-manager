@@ -282,6 +282,83 @@ func (s *Store) SaveDomain(ctx context.Context, id string, input domainname.Inpu
 	}, nil
 }
 
+func (s *Store) GetDomain(ctx context.Context, id string) (DomainRecord, error) {
+	row, err := s.queries.GetDomain(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return DomainRecord{}, ErrNotFound
+	}
+	if err != nil {
+		return DomainRecord{}, err
+	}
+	srvs, err := s.queries.ListDomainServersByDomain(ctx, id)
+	if err != nil {
+		return DomainRecord{}, err
+	}
+	ips, err := s.queries.ListDomainIPsByDomain(ctx, id)
+	if err != nil {
+		return DomainRecord{}, err
+	}
+	if srvs == nil {
+		srvs = []string{}
+	}
+	if ips == nil {
+		ips = []string{}
+	}
+	return DomainRecord{Domain: row, ServerIDs: srvs, IPIDs: ips}, nil
+}
+
+func (s *Store) ApplyDomainLookup(ctx context.Context, id string, res *domainname.LookupResult, lookupErr error, overwrite bool) (DomainRecord, error) {
+	rec, err := s.GetDomain(ctx, id)
+	if err != nil {
+		return DomainRecord{}, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	checkedAt := time.Now().UTC().Format(time.RFC3339)
+	presetKey := rec.PresetKey
+	registrar := rec.Registrar
+	dnsProvider := rec.DnsProvider
+	expireDate := rec.ExpireDate
+	lookupSource := rec.LookupSource
+	errText := ""
+
+	if lookupErr != nil {
+		errText = lookupErr.Error()
+	} else if res != nil {
+		if res.CheckedAt != "" {
+			checkedAt = res.CheckedAt
+		}
+		lookupSource = res.Source
+		if res.PresetKey != "" && (presetKey == "" || overwrite) {
+			presetKey = res.PresetKey
+		}
+		if res.Registrar != "" && (registrar == "" || overwrite) {
+			registrar = res.Registrar
+		}
+		if res.DNSProvider != "" && (dnsProvider == "" || overwrite) {
+			dnsProvider = res.DNSProvider
+		}
+		if res.ExpireDate != "" && (expireDate == "" || overwrite || rec.LookupSource != "") {
+			expireDate = res.ExpireDate
+		}
+	}
+
+	updated, err := s.queries.UpdateDomainLookupMeta(ctx, queries.UpdateDomainLookupMetaParams{
+		PresetKey:       presetKey,
+		Registrar:       registrar,
+		DnsProvider:     dnsProvider,
+		ExpireDate:      expireDate,
+		LookupSource:    lookupSource,
+		LookupCheckedAt: checkedAt,
+		LookupError:     errText,
+		UpdatedAt:       now,
+		ID:              id,
+	})
+	if err != nil {
+		return DomainRecord{}, err
+	}
+	return DomainRecord{Domain: updated, ServerIDs: rec.ServerIDs, IPIDs: rec.IPIDs}, nil
+}
+
 func (s *Store) DeleteDomain(ctx context.Context, id string) error {
 	count, err := s.queries.DeleteDomain(ctx, id)
 	if err != nil {

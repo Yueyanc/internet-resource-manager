@@ -1,15 +1,20 @@
 import type { Account, Domain, IpNode, ServerHost, Subscription } from '@irm/api-client';
 import { Link } from '@tanstack/react-router';
-import { Alert, App, Button, Descriptions, Drawer } from 'antd';
+import { Alert, App, Button, Descriptions, Drawer, Input } from 'antd';
 import dayjs from 'dayjs';
 import {
   ArrowUpRight,
   CalendarPlus,
+  Cloud,
   Copy,
   Globe2,
   Pencil,
+  RefreshCw,
+  Search,
+  Server,
   ShieldCheck,
 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { usePreferences } from '../../../app/preferences-context';
 import { accountDisplayTitle } from '../../accounts/utils/account-metrics';
@@ -32,26 +37,37 @@ export function DomainDetails({
   linkedAccount,
   linkedServers,
   linkedIps,
+  serversById,
+  ipsById,
   onClose,
   onEdit,
   onRenewSub,
   onExtendYear,
+  onRefreshLookup,
   busyRenew,
+  busyLookup,
 }: {
   value: Domain;
   linkedSubscription?: Subscription;
   linkedAccount?: Account;
   linkedServers: ServerHost[];
   linkedIps: IpNode[];
+  serversById?: Map<string, ServerHost>;
+  ipsById?: Map<string, IpNode>;
   onClose: () => void;
   onEdit: () => void;
   onRenewSub: (subscription: Subscription) => Promise<unknown>;
   onExtendYear: (domain: Domain) => Promise<unknown>;
+  onRefreshLookup?: (domain: Domain) => Promise<unknown>;
   busyRenew?: boolean;
+  busyLookup?: boolean;
 }) {
   const { t, locale } = usePreferences();
   const { modal, message } = App.useApp();
   const fallback = t('未填写');
+
+  const [recordFilter, setRecordFilter] = useState('');
+  const [showAllRecords, setShowAllRecords] = useState(false);
 
   const preset = resolveDomainPreset(value);
   const parsed = inspectDomain(value.name);
@@ -102,6 +118,36 @@ export function DomainDetails({
     }`;
   }
 
+  const dnsRecords = useMemo(() => value.dnsRecords ?? [], [value.dnsRecords]);
+  const filteredRecords = useMemo(() => {
+    const q = recordFilter.trim().toLowerCase();
+    if (!q) return dnsRecords;
+    return dnsRecords.filter(rec =>
+      rec.name.toLowerCase().includes(q)
+      || rec.type.toLowerCase().includes(q)
+      || rec.content.toLowerCase().includes(q),
+    );
+  }, [dnsRecords, recordFilter]);
+
+  const visibleRecords = showAllRecords || recordFilter.trim()
+    ? filteredRecords
+    : filteredRecords.slice(0, 10);
+
+  const hasEdgeSection = Boolean(
+    value.edgeMeta
+    || dnsRecords.length > 0,
+  );
+
+  const formatRelativeHost = (fqdn: string) => {
+    const lower = fqdn.toLowerCase();
+    const zoneLower = value.name.toLowerCase();
+    if (lower === zoneLower) return '@';
+    if (lower.endsWith(`.${zoneLower}`)) {
+      return fqdn.slice(0, fqdn.length - zoneLower.length - 1);
+    }
+    return fqdn;
+  };
+
   const items = [
     {
       key: 'fqdn',
@@ -137,6 +183,13 @@ export function DomainDetails({
         : t(domainIcpMeta[value.icpStatus].label),
     },
     { key: 'billing', label: t('续费与到期管理'), children: billingSummary },
+    ...(value.lookupCheckedAt
+      ? [{
+          key: 'lookupMeta',
+          label: t('最近元数据核验'),
+          children: `${value.lookupSource ? value.lookupSource.toUpperCase() : 'RDAP'} · ${dayjs(value.lookupCheckedAt).format('YYYY-MM-DD HH:mm')}`,
+        }]
+      : []),
     ...(value.tags.length > 0
       ? [{
           key: 'tags',
@@ -164,11 +217,20 @@ export function DomainDetails({
     <Drawer
       open
       title={t('域名详情')}
-      size={540}
+      size={580}
       onClose={onClose}
       footer={(
         <div className="detail-actions">
           <Button icon={<Pencil size={14} />} onClick={onEdit}>{t('编辑域名')}</Button>
+          {onRefreshLookup && !value.archived && (
+            <Button
+              icon={<RefreshCw size={14} className={busyLookup ? 'animate-spin' : ''} />}
+              loading={busyLookup}
+              onClick={() => { void onRefreshLookup(value); }}
+            >
+              {t('同步到期日')}
+            </Button>
+          )}
           <Button
             icon={<Copy size={14} />}
             onClick={() => { void copyText(value.name, t('已复制域名')); }}
@@ -256,6 +318,165 @@ export function DomainDetails({
       )}
 
       <Descriptions column={1} size="small" items={items} />
+
+      {hasEdgeSection && (
+        <div className="detail-related-block cf-edge-panel">
+          <div className="cf-edge-header">
+            <div className="cf-edge-title">
+              <Cloud size={15} />
+              <h4>{t('Cloudflare 边缘与 DNS 解析快照')}</h4>
+            </div>
+            <div className="cf-edge-badges">
+              {value.edgeMeta?.plan && (
+                <span className="account-mini-tag">{value.edgeMeta.plan}</span>
+              )}
+              {dnsRecords.length > 0 && (
+                <span className="cf-proxied-pill">
+                  {t('{proxied}/{total} 已开橙云代理', {
+                    proxied: value.edgeMeta?.proxiedCount ?? dnsRecords.filter(r => r.proxied).length,
+                    total: dnsRecords.length,
+                  })}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {value.edgeMeta && value.edgeMeta.nameServers.length > 0 && (
+            <div className="cf-ns-strip">
+              <span className="cf-ns-label">{t('权威 NS')}</span>
+              <div className="cf-ns-list">
+                {value.edgeMeta.nameServers.map(ns => (
+                  <code key={ns}>{ns}</code>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {value.edgeMeta && value.edgeMeta.tunnels.length > 0 && (
+            <div className="cf-sub-section">
+              <span className="cf-sub-title">{t('Zero Trust 内网穿透隧道')}</span>
+              <div className="cf-tunnel-list">
+                {value.edgeMeta.tunnels.map((tun, idx) => {
+                  const statusTone = tun.status === 'healthy'
+                    ? 'is-ok'
+                    : tun.status === 'degraded'
+                      ? 'is-warn'
+                      : 'is-down';
+                  const statusLabel = tun.status === 'healthy'
+                    ? t('在线')
+                    : tun.status === 'degraded'
+                      ? t('降级')
+                      : t('离线');
+                  return (
+                    <div key={`${tun.id}-${tun.hostname || idx}`} className="cf-tunnel-row">
+                      <span className={`cf-tunnel-status ${statusTone}`}>{statusLabel}</span>
+                      <strong>{tun.name}</strong>
+                      {tun.hostname && <code>{tun.hostname}</code>}
+                      {tun.service && <span className="cf-tunnel-target">{`→ ${tun.service}`}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {value.edgeMeta && (value.edgeMeta.pagesProjects.length > 0 || value.edgeMeta.workerRoutes.length > 0) && (
+            <div className="cf-sub-section">
+              <span className="cf-sub-title">{t('Cloudflare Pages 与边缘路由')}</span>
+              <div className="cf-edge-route-pills">
+                {value.edgeMeta.pagesProjects.map(p => (
+                  <span key={p.name} className="account-mini-tag">
+                    {`Pages · ${p.name}${p.domains.length > 0 ? ` (${p.domains.join(', ')})` : ''}`}
+                  </span>
+                ))}
+                {value.edgeMeta.workerRoutes.map(route => (
+                  <span key={route} className="account-mini-tag font-mono">{`Worker · ${route}`}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {dnsRecords.length > 0 && (
+            <div className="cf-sub-section">
+              <div className="cf-dns-head">
+                <span className="cf-sub-title">{t('DNS 解析记录 ({count})', { count: dnsRecords.length })}</span>
+                {dnsRecords.length > 6 && (
+                  <Input
+                    size="small"
+                    allowClear
+                    className="cf-dns-filter"
+                    prefix={<Search size={12} className="text-gray-400" />}
+                    placeholder={t('筛选主机记录、类型或目标值...')}
+                    value={recordFilter}
+                    onChange={e => setRecordFilter(e.target.value)}
+                  />
+                )}
+              </div>
+
+              <div className="cf-dns-table">
+                {visibleRecords.map(rec => (
+                  <div key={rec.id} className="cf-dns-row">
+                    <span className="cf-dns-type">{rec.type}</span>
+                    <code className="cf-dns-name" title={rec.name}>{formatRelativeHost(rec.name)}</code>
+                    <code className="cf-dns-content" title={rec.content}>{rec.content}</code>
+                    <span className={`cf-dns-proxy ${rec.proxied ? 'is-proxied' : ''}`}>
+                      {t(rec.proxied ? '橙云代理' : '仅 DNS')}
+                    </span>
+
+                    {((rec.matchedServerIds?.length ?? 0) > 0 || (rec.matchedIpIds?.length ?? 0) > 0) && (
+                      <div className="cf-dns-matches">
+                        {(rec.matchedServerIds ?? []).map((srvId) => {
+                          const srv = serversById?.get(srvId) ?? linkedServers.find(s => s.id === srvId);
+                          if (!srv) return null;
+                          return (
+                            <Link
+                              key={srv.id}
+                              to="/servers/$serverId"
+                              params={{ serverId: srv.id }}
+                              className="cf-dns-match-link"
+                              onClick={onClose}
+                            >
+                              <Server size={11} />
+                              <span>{srv.name}</span>
+                            </Link>
+                          );
+                        })}
+                        {(rec.matchedIpIds ?? []).map((ipId) => {
+                          const ip = ipsById?.get(ipId) ?? linkedIps.find(i => i.id === ipId);
+                          if (!ip) return null;
+                          return (
+                            <Link
+                              key={ip.id}
+                              to="/ips"
+                              search={{ detail: ip.id }}
+                              className="cf-dns-match-link"
+                              onClick={onClose}
+                            >
+                              <span>{ipDisplayTitle(ip)}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {!recordFilter.trim() && filteredRecords.length > 10 && (
+                <button
+                  type="button"
+                  className="cf-dns-more-btn"
+                  onClick={() => setShowAllRecords(prev => !prev)}
+                >
+                  {showAllRecords
+                    ? t('收起解析记录')
+                    : t('展开全部 {count} 条解析记录', { count: filteredRecords.length })}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {linkedSubscription && (
         <div className="detail-related-block">

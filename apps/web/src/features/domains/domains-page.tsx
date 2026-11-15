@@ -3,8 +3,10 @@ import {
   deleteDomain,
   type Domain,
   domainsOptions,
+  integrationsOptions,
   ipsOptions,
   preferencesOptions,
+  refreshDomainLookup,
   renewSubscription,
   serversOptions,
   type Subscription,
@@ -15,13 +17,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { App, Button, Dropdown, Empty, Segmented, Skeleton, Tooltip } from 'antd';
 import dayjs from 'dayjs';
-import { ArrowDownWideNarrow, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Cloud, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { useWorkspace } from '../../layouts/workspace-context';
 import { errorMessage } from '../../shared/errors';
 import { QueryError } from '../../shared/feedback';
+import { CloudflareSyncModal } from './components/cloudflare-sync-modal';
 import { DomainAttentionCard } from './components/domain-attention-card';
 import { DomainBreakdownCard } from './components/domain-breakdown-card';
 import { DomainCard } from './components/domain-card';
@@ -46,6 +49,7 @@ export function DomainsPage() {
   const accounts = useQuery(accountsOptions);
   const servers = useQuery(serversOptions);
   const ips = useQuery(ipsOptions);
+  const integrations = useQuery(integrationsOptions);
 
   const { newDomain, search } = useWorkspace();
   const routeSearch = useSearch({ strict: false }) as { detail?: string };
@@ -65,6 +69,7 @@ export function DomainsPage() {
   const [masked, setMasked] = useState(false);
   const [editing, setEditing] = useState<Domain>();
   const [detailId, setDetailId] = useState<string>();
+  const [cfModalOpen, setCfModalOpen] = useState(false);
 
   const effectiveDetailId = detailId ?? routeSearch.detail;
   const closeDetail = () => {
@@ -109,6 +114,21 @@ export function DomainsPage() {
     },
   });
 
+  const lookupRefresh = useMutation({
+    mutationFn: (domain: Domain) => refreshDomainLookup(domain.id, true),
+    onSuccess: async (res) => {
+      await changed();
+      void message.success(
+        t('已通过 {source} 更新域名注册与到期信息', {
+          source: (res.lookupSource || 'RDAP').toUpperCase(),
+        }),
+      );
+    },
+    onError: (error) => {
+      void message.error(errorMessage(error, locale));
+    },
+  });
+
   const remove = useMutation({
     mutationFn: deleteDomain,
     onSuccess: async () => {
@@ -120,6 +140,12 @@ export function DomainsPage() {
       void message.error(errorMessage(error, locale));
     },
   });
+
+  const cfConnections = useMemo(
+    () => (integrations.isSuccess ? integrations.data.items.filter(c => c.provider === 'cloudflare') : []),
+    [integrations.isSuccess, integrations.data],
+  );
+  const cfHasError = cfConnections.some(c => c.status === 'error');
 
   const available = domains.isSuccess;
   const items = useMemo(() => (available ? domains.data.items : []), [available, domains.data]);
@@ -236,7 +262,9 @@ export function DomainsPage() {
     ? renewSub.variables.id
     : extendYear.isPending
       ? extendYear.variables.id
-      : undefined;
+      : lookupRefresh.isPending
+        ? lookupRefresh.variables.id
+        : undefined;
 
   const hasFilters = Boolean(
     search.trim()
@@ -294,6 +322,17 @@ export function DomainsPage() {
             onIcp={setIcp}
             onTld={setTld}
           />
+          <Button
+            className={`cf-sync-trigger-btn ${cfConnections.length > 0 ? 'is-connected' : ''}`}
+            icon={<Cloud size={15} />}
+            onClick={() => setCfModalOpen(true)}
+            disabled={!available}
+          >
+            <span>{t('Cloudflare 同步')}</span>
+            {cfConnections.length > 0 && (
+              <span className={`cf-live-dot ${cfHasError ? 'is-error' : ''}`} aria-hidden="true" />
+            )}
+          </Button>
           <Button
             type="primary"
             className="new-resource-button"
@@ -461,6 +500,7 @@ export function DomainsPage() {
                                 onEdit={() => setEditing(item)}
                                 onRenewSub={sub => renewSub.mutateAsync(sub)}
                                 onExtendYear={dom => extendYear.mutateAsync(dom)}
+                                onRefreshLookup={dom => lookupRefresh.mutateAsync(dom)}
                                 onDelete={() => remove.mutateAsync(item.id)}
                                 busyRenew={isBusy}
                               />
@@ -496,6 +536,8 @@ export function DomainsPage() {
           linkedAccount={detailAccount}
           linkedServers={detailServers}
           linkedIps={detailIps}
+          serversById={serversById}
+          ipsById={ipsById}
           onClose={closeDetail}
           onEdit={() => {
             setEditing(detail);
@@ -503,6 +545,8 @@ export function DomainsPage() {
           }}
           onRenewSub={sub => renewSub.mutateAsync(sub)}
           onExtendYear={dom => extendYear.mutateAsync(dom)}
+          onRefreshLookup={dom => lookupRefresh.mutateAsync(dom)}
+          busyLookup={lookupRefresh.isPending && lookupRefresh.variables.id === detail.id}
           busyRenew={
             activeBusyId === detail.id
             || Boolean(detailSubscription && activeBusyId === detailSubscription.id)
@@ -522,6 +566,12 @@ export function DomainsPage() {
           onClose={() => setEditing(undefined)}
         />
       )}
+
+      <CloudflareSyncModal
+        open={cfModalOpen}
+        accounts={accountList}
+        onClose={() => setCfModalOpen(false)}
+      />
     </>
   );
 }

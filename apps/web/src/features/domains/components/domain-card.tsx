@@ -7,12 +7,14 @@ import {
   CalendarClock,
   CalendarPlus,
   Check,
+  Cloud,
   Copy,
   Eye,
   Globe2,
   MoreHorizontal,
   Network,
   Pencil,
+  RefreshCw,
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
@@ -42,6 +44,7 @@ export function DomainCard({
   onEdit,
   onRenewSub,
   onExtendYear,
+  onRefreshLookup,
   onDelete,
   busyRenew,
 }: {
@@ -55,6 +58,7 @@ export function DomainCard({
   onEdit: () => void;
   onRenewSub: (subscription: Subscription) => Promise<unknown>;
   onExtendYear: (domain: Domain) => Promise<unknown>;
+  onRefreshLookup?: (domain: Domain) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
   busyRenew?: boolean;
 }) {
@@ -201,6 +205,31 @@ export function DomainCard({
     });
   }
 
+  const tunnelCount = value.edgeMeta?.tunnels?.length ?? 0;
+  const dnsRecordCount = value.dnsRecords?.length ?? 0;
+  if (tunnelCount > 0) {
+    footerNodes.push({
+      key: 'cf-tunnel',
+      node: (
+        <button type="button" className="account-meta-chip is-interactive is-cf-chip" onClick={onDetails}>
+          <Cloud size={11.5} />
+          <span>{t('Tunnel · {count}', { count: tunnelCount })}</span>
+        </button>
+      ),
+    });
+  }
+  else if (dnsRecordCount > 0) {
+    footerNodes.push({
+      key: 'cf-dns',
+      node: (
+        <button type="button" className="account-meta-chip is-interactive is-cf-chip" onClick={onDetails}>
+          <Cloud size={11.5} />
+          <span>{t('CF 解析 {count} 条', { count: dnsRecordCount })}</span>
+        </button>
+      ),
+    });
+  }
+
   if (registrarAccount) {
     footerNodes.push({
       key: 'account',
@@ -301,6 +330,14 @@ export function DomainCard({
               { key: 'details', label: t('查看详情'), icon: <Eye size={14} /> },
               { key: 'edit', label: t('编辑域名'), icon: <Pencil size={14} /> },
               { key: 'copy', label: t('复制域名'), icon: <Copy size={14} /> },
+              ...(onRefreshLookup && !value.archived
+                ? [{
+                    key: 'lookup',
+                    label: t('同步到期日 (RDAP)'),
+                    icon: <RefreshCw size={14} />,
+                    disabled: busyRenew,
+                  }]
+                : []),
               ...(canRenewSub || canExtendManual
                 ? [{
                     key: 'renew',
@@ -342,6 +379,7 @@ export function DomainCard({
               if (key === 'details') onDetails();
               if (key === 'edit') onEdit();
               if (key === 'copy') void copyPlain('fqdn', value.name, t('已复制域名'));
+              if (key === 'lookup' && onRefreshLookup) void onRefreshLookup(value);
               if (key === 'renew') confirmRenew();
               if (key === 'delete') {
                 modal.confirm({

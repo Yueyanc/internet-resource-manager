@@ -5,6 +5,9 @@ ORDER BY archived, CASE status WHEN 'active' THEN 0 WHEN 'transferring' THEN 1 W
 -- name: GetDomain :one
 SELECT * FROM domains WHERE id = ?;
 
+-- name: GetDomainByName :one
+SELECT * FROM domains WHERE lower(name) = lower(?);
+
 -- name: SaveDomain :one
 INSERT INTO domains (
     id, preset_key, name, registrar, dns_provider, purpose, status,
@@ -37,6 +40,42 @@ ON CONFLICT(id) DO UPDATE SET
     notes = excluded.notes,
     archived = excluded.archived,
     updated_at = excluded.updated_at
+RETURNING *;
+
+-- name: UpdateDomainSyncMeta :one
+UPDATE domains
+SET preset_key = ?,
+    registrar = ?,
+    dns_provider = ?,
+    status = ?,
+    expire_date = ?,
+    auto_renew = ?,
+    whois_privacy = ?,
+    management_url = ?,
+    registrar_account_id = ?,
+    tags_json = ?,
+    provider_connection_id = ?,
+    external_zone_id = ?,
+    dns_records_json = ?,
+    edge_meta_json = ?,
+    lookup_source = ?,
+    lookup_checked_at = ?,
+    lookup_error = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING *;
+
+-- name: UpdateDomainLookupMeta :one
+UPDATE domains
+SET preset_key = ?,
+    registrar = ?,
+    dns_provider = ?,
+    expire_date = ?,
+    lookup_source = ?,
+    lookup_checked_at = ?,
+    lookup_error = ?,
+    updated_at = ?
+WHERE id = ?
 RETURNING *;
 
 -- name: DeleteDomain :execrows

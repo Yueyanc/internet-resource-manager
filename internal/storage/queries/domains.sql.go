@@ -41,7 +41,7 @@ func (q *Queries) DeleteDomainServers(ctx context.Context, domainID string) erro
 }
 
 const getDomain = `-- name: GetDomain :one
-SELECT id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at FROM domains WHERE id = ?
+SELECT id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at, provider_connection_id, external_zone_id, dns_records_json, edge_meta_json, lookup_source, lookup_checked_at, lookup_error FROM domains WHERE id = ?
 `
 
 func (q *Queries) GetDomain(ctx context.Context, id string) (Domain, error) {
@@ -68,6 +68,52 @@ func (q *Queries) GetDomain(ctx context.Context, id string) (Domain, error) {
 		&i.TagsJson,
 		&i.Archived,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalZoneID,
+		&i.DnsRecordsJson,
+		&i.EdgeMetaJson,
+		&i.LookupSource,
+		&i.LookupCheckedAt,
+		&i.LookupError,
+	)
+	return i, err
+}
+
+const getDomainByName = `-- name: GetDomainByName :one
+SELECT id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at, provider_connection_id, external_zone_id, dns_records_json, edge_meta_json, lookup_source, lookup_checked_at, lookup_error FROM domains WHERE lower(name) = lower(?)
+`
+
+func (q *Queries) GetDomainByName(ctx context.Context, lower string) (Domain, error) {
+	row := q.db.QueryRowContext(ctx, getDomainByName, lower)
+	var i Domain
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.PresetKey,
+		&i.Registrar,
+		&i.DnsProvider,
+		&i.Purpose,
+		&i.Status,
+		&i.ExpireDate,
+		&i.AutoRenew,
+		&i.WhoisPrivacy,
+		&i.IcpStatus,
+		&i.IcpNumber,
+		&i.ManagementUrl,
+		&i.SubscriptionID,
+		&i.RegistrarAccountID,
+		&i.TagsJson,
+		&i.Archived,
+		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalZoneID,
+		&i.DnsRecordsJson,
+		&i.EdgeMetaJson,
+		&i.LookupSource,
+		&i.LookupCheckedAt,
+		&i.LookupError,
 	)
 	return i, err
 }
@@ -127,7 +173,7 @@ func (q *Queries) ListDomainServersByDomain(ctx context.Context, domainID string
 }
 
 const listDomains = `-- name: ListDomains :many
-SELECT id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at FROM domains
+SELECT id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at, provider_connection_id, external_zone_id, dns_records_json, edge_meta_json, lookup_source, lookup_checked_at, lookup_error FROM domains
 ORDER BY archived, CASE status WHEN 'active' THEN 0 WHEN 'transferring' THEN 1 WHEN 'parked' THEN 2 ELSE 3 END, created_at DESC, id DESC
 `
 
@@ -161,6 +207,13 @@ func (q *Queries) ListDomains(ctx context.Context) ([]Domain, error) {
 			&i.TagsJson,
 			&i.Archived,
 			&i.UpdatedAt,
+			&i.ProviderConnectionID,
+			&i.ExternalZoneID,
+			&i.DnsRecordsJson,
+			&i.EdgeMetaJson,
+			&i.LookupSource,
+			&i.LookupCheckedAt,
+			&i.LookupError,
 		); err != nil {
 			return nil, err
 		}
@@ -207,7 +260,7 @@ ON CONFLICT(id) DO UPDATE SET
     notes = excluded.notes,
     archived = excluded.archived,
     updated_at = excluded.updated_at
-RETURNING id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at
+RETURNING id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at, provider_connection_id, external_zone_id, dns_records_json, edge_meta_json, lookup_source, lookup_checked_at, lookup_error
 `
 
 type SaveDomainParams struct {
@@ -278,6 +331,185 @@ func (q *Queries) SaveDomain(ctx context.Context, arg SaveDomainParams) (Domain,
 		&i.TagsJson,
 		&i.Archived,
 		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalZoneID,
+		&i.DnsRecordsJson,
+		&i.EdgeMetaJson,
+		&i.LookupSource,
+		&i.LookupCheckedAt,
+		&i.LookupError,
+	)
+	return i, err
+}
+
+const updateDomainLookupMeta = `-- name: UpdateDomainLookupMeta :one
+UPDATE domains
+SET preset_key = ?,
+    registrar = ?,
+    dns_provider = ?,
+    expire_date = ?,
+    lookup_source = ?,
+    lookup_checked_at = ?,
+    lookup_error = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at, provider_connection_id, external_zone_id, dns_records_json, edge_meta_json, lookup_source, lookup_checked_at, lookup_error
+`
+
+type UpdateDomainLookupMetaParams struct {
+	PresetKey       string `json:"preset_key"`
+	Registrar       string `json:"registrar"`
+	DnsProvider     string `json:"dns_provider"`
+	ExpireDate      string `json:"expire_date"`
+	LookupSource    string `json:"lookup_source"`
+	LookupCheckedAt string `json:"lookup_checked_at"`
+	LookupError     string `json:"lookup_error"`
+	UpdatedAt       string `json:"updated_at"`
+	ID              string `json:"id"`
+}
+
+func (q *Queries) UpdateDomainLookupMeta(ctx context.Context, arg UpdateDomainLookupMetaParams) (Domain, error) {
+	row := q.db.QueryRowContext(ctx, updateDomainLookupMeta,
+		arg.PresetKey,
+		arg.Registrar,
+		arg.DnsProvider,
+		arg.ExpireDate,
+		arg.LookupSource,
+		arg.LookupCheckedAt,
+		arg.LookupError,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i Domain
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.PresetKey,
+		&i.Registrar,
+		&i.DnsProvider,
+		&i.Purpose,
+		&i.Status,
+		&i.ExpireDate,
+		&i.AutoRenew,
+		&i.WhoisPrivacy,
+		&i.IcpStatus,
+		&i.IcpNumber,
+		&i.ManagementUrl,
+		&i.SubscriptionID,
+		&i.RegistrarAccountID,
+		&i.TagsJson,
+		&i.Archived,
+		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalZoneID,
+		&i.DnsRecordsJson,
+		&i.EdgeMetaJson,
+		&i.LookupSource,
+		&i.LookupCheckedAt,
+		&i.LookupError,
+	)
+	return i, err
+}
+
+const updateDomainSyncMeta = `-- name: UpdateDomainSyncMeta :one
+UPDATE domains
+SET preset_key = ?,
+    registrar = ?,
+    dns_provider = ?,
+    status = ?,
+    expire_date = ?,
+    auto_renew = ?,
+    whois_privacy = ?,
+    management_url = ?,
+    registrar_account_id = ?,
+    tags_json = ?,
+    provider_connection_id = ?,
+    external_zone_id = ?,
+    dns_records_json = ?,
+    edge_meta_json = ?,
+    lookup_source = ?,
+    lookup_checked_at = ?,
+    lookup_error = ?,
+    updated_at = ?
+WHERE id = ?
+RETURNING id, name, notes, created_at, preset_key, registrar, dns_provider, purpose, status, expire_date, auto_renew, whois_privacy, icp_status, icp_number, management_url, subscription_id, registrar_account_id, tags_json, archived, updated_at, provider_connection_id, external_zone_id, dns_records_json, edge_meta_json, lookup_source, lookup_checked_at, lookup_error
+`
+
+type UpdateDomainSyncMetaParams struct {
+	PresetKey            string         `json:"preset_key"`
+	Registrar            string         `json:"registrar"`
+	DnsProvider          string         `json:"dns_provider"`
+	Status               string         `json:"status"`
+	ExpireDate           string         `json:"expire_date"`
+	AutoRenew            int64          `json:"auto_renew"`
+	WhoisPrivacy         int64          `json:"whois_privacy"`
+	ManagementUrl        string         `json:"management_url"`
+	RegistrarAccountID   sql.NullString `json:"registrar_account_id"`
+	TagsJson             string         `json:"tags_json"`
+	ProviderConnectionID sql.NullString `json:"provider_connection_id"`
+	ExternalZoneID       string         `json:"external_zone_id"`
+	DnsRecordsJson       string         `json:"dns_records_json"`
+	EdgeMetaJson         string         `json:"edge_meta_json"`
+	LookupSource         string         `json:"lookup_source"`
+	LookupCheckedAt      string         `json:"lookup_checked_at"`
+	LookupError          string         `json:"lookup_error"`
+	UpdatedAt            string         `json:"updated_at"`
+	ID                   string         `json:"id"`
+}
+
+func (q *Queries) UpdateDomainSyncMeta(ctx context.Context, arg UpdateDomainSyncMetaParams) (Domain, error) {
+	row := q.db.QueryRowContext(ctx, updateDomainSyncMeta,
+		arg.PresetKey,
+		arg.Registrar,
+		arg.DnsProvider,
+		arg.Status,
+		arg.ExpireDate,
+		arg.AutoRenew,
+		arg.WhoisPrivacy,
+		arg.ManagementUrl,
+		arg.RegistrarAccountID,
+		arg.TagsJson,
+		arg.ProviderConnectionID,
+		arg.ExternalZoneID,
+		arg.DnsRecordsJson,
+		arg.EdgeMetaJson,
+		arg.LookupSource,
+		arg.LookupCheckedAt,
+		arg.LookupError,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i Domain
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.PresetKey,
+		&i.Registrar,
+		&i.DnsProvider,
+		&i.Purpose,
+		&i.Status,
+		&i.ExpireDate,
+		&i.AutoRenew,
+		&i.WhoisPrivacy,
+		&i.IcpStatus,
+		&i.IcpNumber,
+		&i.ManagementUrl,
+		&i.SubscriptionID,
+		&i.RegistrarAccountID,
+		&i.TagsJson,
+		&i.Archived,
+		&i.UpdatedAt,
+		&i.ProviderConnectionID,
+		&i.ExternalZoneID,
+		&i.DnsRecordsJson,
+		&i.EdgeMetaJson,
+		&i.LookupSource,
+		&i.LookupCheckedAt,
+		&i.LookupError,
 	)
 	return i, err
 }

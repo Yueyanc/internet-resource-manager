@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Yueyanc/internet-resource-manager/internal/cloudsync"
+	"github.com/Yueyanc/internet-resource-manager/internal/domainname"
 	"github.com/Yueyanc/internet-resource-manager/internal/ipaddr"
 	"github.com/Yueyanc/internet-resource-manager/internal/storage"
 	"github.com/Yueyanc/internet-resource-manager/internal/updater"
@@ -17,15 +19,17 @@ import (
 type Option func(*handlerConfig)
 
 type handlerConfig struct {
-	ipLookuper     ipaddr.Lookuper
-	ipProber       ipaddr.Prober
-	agentBinDir    string
-	allowedOrigins []string
-	trustProxy     bool
-	version        string
-	buildType      string
-	updaterSvc     *updater.Service
-	restartFn      func()
+	ipLookuper       ipaddr.Lookuper
+	ipProber         ipaddr.Prober
+	domainLookuper   domainname.Lookuper
+	cloudflareClient cloudsync.CloudflareClient
+	agentBinDir      string
+	allowedOrigins   []string
+	trustProxy       bool
+	version          string
+	buildType        string
+	updaterSvc       *updater.Service
+	restartFn        func()
 }
 
 func ParseAllowedOrigins(raw string) ([]string, error) {
@@ -56,6 +60,22 @@ func WithIPServices(lookuper ipaddr.Lookuper, prober ipaddr.Prober) Option {
 		}
 		if prober != nil {
 			cfg.ipProber = prober
+		}
+	}
+}
+
+func WithDomainLookuper(lookuper domainname.Lookuper) Option {
+	return func(cfg *handlerConfig) {
+		if lookuper != nil {
+			cfg.domainLookuper = lookuper
+		}
+	}
+}
+
+func WithCloudflareClient(client cloudsync.CloudflareClient) Option {
+	return func(cfg *handlerConfig) {
+		if client != nil {
+			cfg.cloudflareClient = client
 		}
 	}
 }
@@ -112,9 +132,11 @@ func WithRestartFunc(fn func()) Option {
 
 func buildHandlerConfig(opts ...Option) handlerConfig {
 	cfg := handlerConfig{
-		ipLookuper: ipaddr.NewDefaultLookuper(),
-		ipProber:   ipaddr.NewDefaultProber(),
-		version:    "0.1.0-dev",
+		ipLookuper:       ipaddr.NewDefaultLookuper(),
+		ipProber:         ipaddr.NewDefaultProber(),
+		domainLookuper:   domainname.NewDefaultLookuper(),
+		cloudflareClient: cloudsync.NewCloudflareClient(),
+		version:          "0.1.0-dev",
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -178,13 +200,14 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
 				"status": "ok", "database": "ok", "version": cfg.version,
-				"capabilities": map[string]bool{"auth": true, "domainLookup": false, "agentIngest": true, "selfUpdate": updaterSvc.CanSelfUpdate()},
+				"capabilities": map[string]bool{"auth": true, "domainLookup": true, "agentIngest": true, "selfUpdate": updaterSvc.CanSelfUpdate()},
 			})
 		})
 		authentication.routes(api)
 		api.Group(func(private chi.Router) {
 			private.Use(authentication.require)
-			domainRoutes(private, store)
+			domainRoutes(private, store, cfg.domainLookuper)
+			integrationRoutes(private, store, cfg.cloudflareClient, cfg.domainLookuper)
 			subscriptionRoutes(private, store)
 			accountRoutes(private, store)
 			vaultRoutes(private, store)

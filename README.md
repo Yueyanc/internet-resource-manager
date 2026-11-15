@@ -26,14 +26,14 @@
 - 月/季/半年/年/两年/三年/自定义天数与一次性买断；确认付款后顺延一周期，处理月底及闰年。
 - 多币种参考折算、月均与年度预算、本月计划待付、30 天到期提醒、月历与分类支出。
 - 本位币与手动汇率设置，支持 CNY / USD / HKD / EUR / GBP / JPY。
-- 域名真实录入、列表、搜索、删除；SQLite 持久化，启动时自动迁移。
+- 域名与边缘解析台账（`/domains`）：内置 22 项国内外注册商与 DNS 托管商预设、卡片/表格双视图、域名前缀防窥脱敏、ICP 备案与 WHOIS 隐私标记、关联服务器与 IP 节点拓扑；支持**通用域名 RDAP + Port 43 WHOIS 双通道自动查询**（覆盖 `.com`/`.org`/`.io`/`.cn` 等后缀自动回填注册商、权威 NS 与到期日），并内置 **Cloudflare 严格只读一键资产同步**（一键跳转预填最小 `Read` 权限的官方令牌页，服务端独立 `AES-256-GCM` 密钥加密落盘，自动导入托管 Zone、Cloudflare Registrar 到期日、DNS 解析记录、Zero Trust Tunnel 隧道在线状态与 Cloudflare Pages 绑定域名，并根据 `A`/`AAAA`/`CNAME` 记录无损自动串联名下服务器与 IP 节点）。
 - 后端健康检查、统一 JSON 错误、Zod 响应校验。
 - Agent 出站采集与上报（`apps/agent`）：支持 `inspect`（含 `-compact` 输出 `IRM1:` 快照）、`enroll`、`report`、`run` 守护上报模式，构建时同步纯 Go 交叉编译 `dist/irm-agent-linux-amd64` 与 `dist/irm-agent-linux-arm64`。
 - pnpm workspace、Turborepo、统一 ESLint 格式规则、Go / Web / E2E 测试。
 - 构建后的 Web 内嵌到 Go 服务，运行不需要 Node.js。
 
 **尚未实现**：实时汇率、真实扣款同步与支付流水、邮件/Webhook 告警通知、管理员密码修改/找回与登录 2FA、
-多用户与细粒度授权、API Token 加密保险箱、域名 RDAP/WHOIS 自动到期查询与 DNS/TLS 定时监控、
+多用户与细粒度授权、DNS/TLS 证书定时健康巡检、
 IP 流媒体解锁自动代理脚本探测与后台定时巡检、服务器监控历史时序留存图表与 systemd 单元发现、手机卡与 eSIM 台账。
 用户头像当前使用真实登录用户名的首字母，不生成虚构人像；尚无头像上传功能。
 shadcn 的辅助接入配置已预留，没有为了占位而安装未使用的组件。
