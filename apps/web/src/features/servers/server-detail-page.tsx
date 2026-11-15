@@ -47,7 +47,9 @@ export function ServerDetailPage() {
 
   const servers = useQuery({
     ...serversOptions,
-    refetchInterval: 10_000,
+    staleTime: 2_000,
+    refetchInterval: 3_000,
+    refetchOnWindowFocus: true,
   });
   const subscriptions = useQuery(subscriptionsOptions);
   const accounts = useQuery(accountsOptions);

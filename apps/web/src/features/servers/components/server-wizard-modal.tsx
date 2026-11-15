@@ -411,7 +411,7 @@ function ServerWizardBody({
               <div>
                 <h4>{t('服务器已自动接入并完成建档！')}</h4>
                 {enrolledServer.telemetry.mode === 'daemon' && (
-                  <p>{t('硬件规格、操作系统、网络地址与归属地已自动填入，后续指标将每 {sec} 秒自动刷新。', { sec: enrolledServer.telemetry.intervalSec || 20 })}</p>
+                  <p>{t('硬件规格、操作系统、网络地址与归属地已自动填入，后续指标将每 {sec} 秒自动刷新。', { sec: enrolledServer.telemetry.intervalSec || 5 })}</p>
                 )}
               </div>
             </div>

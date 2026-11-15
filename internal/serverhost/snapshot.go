@@ -57,7 +57,7 @@ func DefaultTelemetry() Telemetry {
 // ComputeAgentStatus evaluates telemetry liveness honestly:
 // - "none": no agent or snapshot attached
 // - "snapshot": one-shot snapshot imported (no heartbeat expected)
-// - "online": daemon reported within max(intervalSec*3, 90s)
+// - "online": daemon reported within max(intervalSec*3, 30s)
 // - "stale": daemon heartbeat overdue (never reported as confirmed host offline)
 func ComputeAgentStatus(mode string, intervalSec int64, lastReportedAt string, now time.Time) string {
 	switch mode {
@@ -75,8 +75,8 @@ func ComputeAgentStatus(mode string, intervalSec int64, lastReportedAt string, n
 			}
 		}
 		threshold := time.Duration(intervalSec) * 3 * time.Second
-		if threshold < 90*time.Second {
-			threshold = 90 * time.Second
+		if threshold < 30*time.Second {
+			threshold = 30 * time.Second
 		}
 		if now.Sub(reportedAt) <= threshold {
 			return "online"

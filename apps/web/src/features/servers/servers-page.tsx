@@ -40,7 +40,9 @@ import {
 export function ServersPage() {
   const servers = useQuery({
     ...serversOptions,
-    refetchInterval: 15_000,
+    staleTime: 3_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
   const subscriptions = useQuery(subscriptionsOptions);
   const preferences = useQuery(preferencesOptions);

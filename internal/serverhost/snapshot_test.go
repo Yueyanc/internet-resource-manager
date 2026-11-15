@@ -17,8 +17,14 @@ func TestComputeAgentStatusHonesty(t *testing.T) {
 	if got := ComputeAgentStatus("snapshot", 0, "2025-01-01T00:00:00Z", now); got != "snapshot" {
 		t.Fatalf("expected snapshot to stay snapshot regardless of age, got %q", got)
 	}
+	if got := ComputeAgentStatus("daemon", 5, now.Add(-25*time.Second).Format(time.RFC3339), now); got != "online" {
+		t.Fatalf("expected online within 30s floor, got %q", got)
+	}
+	if got := ComputeAgentStatus("daemon", 5, now.Add(-35*time.Second).Format(time.RFC3339), now); got != "stale" {
+		t.Fatalf("expected stale past 30s floor for 5s interval, got %q", got)
+	}
 	if got := ComputeAgentStatus("daemon", 20, now.Add(-60*time.Second).Format(time.RFC3339), now); got != "online" {
-		t.Fatalf("expected online within 90s floor, got %q", got)
+		t.Fatalf("expected online at 3x20s=60s threshold, got %q", got)
 	}
 	if got := ComputeAgentStatus("daemon", 20, now.Add(-120*time.Second).Format(time.RFC3339), now); got != "stale" {
 		t.Fatalf("expected stale after threshold, got %q", got)

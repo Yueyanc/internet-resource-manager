@@ -283,10 +283,10 @@ func (s *Store) PeekEnrollToken(ctx context.Context, rawToken string) (queries.A
 
 func clampIntervalSec(v int) int64 {
 	if v <= 0 {
-		return 20
-	}
-	if v < 5 {
 		return 5
+	}
+	if v < 2 {
+		return 2
 	}
 	if v > 300 {
 		return 300

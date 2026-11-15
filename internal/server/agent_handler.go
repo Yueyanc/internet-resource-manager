@@ -534,7 +534,7 @@ set -eu
 
 IRM_URL=""
 IRM_TOKEN=""
-IRM_INTERVAL="20"
+IRM_INTERVAL="5"
 IRM_DOCKER="0"
 IRM_ONESHOT="0"
 
@@ -542,7 +542,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --url) IRM_URL="${2:-}"; shift 2 ;;
     --token) IRM_TOKEN="${2:-}"; shift 2 ;;
-    --interval) IRM_INTERVAL="${2:-20}"; shift 2 ;;
+    --interval) IRM_INTERVAL="${2:-5}"; shift 2 ;;
     --docker) IRM_DOCKER="1"; shift 1 ;;
     --oneshot) IRM_ONESHOT="1"; shift 1 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;

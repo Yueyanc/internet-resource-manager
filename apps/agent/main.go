@@ -21,7 +21,7 @@ import (
 	"github.com/Yueyanc/internet-resource-manager/internal/protocol"
 )
 
-const agentVersion = "0.2.0"
+const agentVersion = "0.2.1"
 
 type agentState struct {
 	URL          string `json:"url"`
@@ -63,7 +63,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `Usage:
   agent inspect [-docker] [-compact]
-  agent enroll -url <https://irm-host> -token <irm_enroll_...> [-state /var/lib/irm-agent/state.json] [-interval 20] [-docker] [-oneshot]
+  agent enroll -url <https://irm-host> -token <irm_enroll_...> [-state /var/lib/irm-agent/state.json] [-interval 5] [-docker] [-oneshot]
   agent report -state /var/lib/irm-agent/state.json
   agent run    -state /var/lib/irm-agent/state.json`)
 }
@@ -103,7 +103,7 @@ func cmdEnroll(ctx context.Context, args []string) error {
 	baseURL := fs.String("url", "", "IRM server base URL")
 	token := fs.String("token", "", "one-time enrollment token")
 	statePath := fs.String("state", "/var/lib/irm-agent/state.json", "path to persist machine credential")
-	interval := fs.Int("interval", 20, "reporting interval in seconds")
+	interval := fs.Int("interval", 5, "reporting interval in seconds")
 	withDocker := fs.Bool("docker", false, "enable read-only Docker container discovery")
 	dockerSocket := fs.String("docker-socket", collector.DefaultDockerSocket, "Docker unix socket path")
 	oneshot := fs.Bool("oneshot", false, "collect and register hardware snapshot without daemon credentials")
@@ -115,8 +115,8 @@ func cmdEnroll(ctx context.Context, args []string) error {
 	if cleanURL == "" || cleanToken == "" {
 		return errors.New("both -url and -token are required")
 	}
-	if *interval < 5 {
-		*interval = 5
+	if *interval < 2 {
+		*interval = 2
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -157,7 +157,7 @@ func cmdEnroll(ctx context.Context, args []string) error {
 		Docker:       *withDocker,
 		DockerSocket: *dockerSocket,
 	}
-	if st.IntervalSec < 5 {
+	if st.IntervalSec < 2 {
 		st.IntervalSec = *interval
 	}
 	if err := saveState(*statePath, st); err != nil {
@@ -205,7 +205,11 @@ func cmdRunDaemon(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	interval := time.Duration(max(st.IntervalSec, 5)) * time.Second
+	initialSec := st.IntervalSec
+	if initialSec <= 0 {
+		initialSec = 5
+	}
+	interval := time.Duration(max(initialSec, 2)) * time.Second
 
 	var prevRx, prevTx uint64
 	var prevAt time.Time
@@ -245,15 +249,20 @@ func cmdRunDaemon(ctx context.Context, args []string) error {
 		}, &resp); postErr != nil {
 			return postErr
 		}
-		if resp.IntervalSec >= 5 {
-			interval = time.Duration(resp.IntervalSec) * time.Second
+		if resp.IntervalSec >= 2 {
+			newInterval := time.Duration(resp.IntervalSec) * time.Second
+			if newInterval != interval {
+				interval = newInterval
+				st.IntervalSec = resp.IntervalSec
+				_ = saveState(*statePath, st)
+			}
 		}
 		return nil
 	}
 
 	_ = reportTick()
 	for {
-		jitter := time.Duration(rand.IntN(1000)) * time.Millisecond
+		jitter := time.Duration(rand.IntN(250)) * time.Millisecond
 		timer := time.NewTimer(interval + jitter)
 		select {
 		case <-ctx.Done():
