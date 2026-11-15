@@ -1,0 +1,1086 @@
+import type { Subscription, SubscriptionInput } from '@irm/api-client';
+
+export type PresetGroup = 'popular' | 'video_cn' | 'music_read' | 'cloud_docs' | 'shopping_life' | 'ai_dev' | 'global_gaming' | 'infra_telecom';
+
+export type PresetPlan = {
+  id: string;
+  label: { zh: string; en: string };
+  itemName: { zh: string; en: string };
+  amount: number;
+  currency: SubscriptionInput['currency'];
+  cycle: SubscriptionInput['cycle'];
+  intervalDays?: number;
+};
+
+export type SubscriptionPreset = {
+  key: string;
+  name: { zh: string; en: string };
+  subtitle: { zh: string; en: string };
+  group: Exclude<PresetGroup, 'popular'>;
+  popular?: boolean;
+  category: SubscriptionInput['category'];
+  color: string;
+  darkInvert?: boolean;
+  keywords: string[];
+  managementUrl?: string;
+  cancelTip?: { zh: string; en: string };
+  plans: PresetPlan[];
+};
+
+const cnAutoPayTip = {
+  zh: '国内自动续费常位于：微信「我 → 服务 → 钱包 → 支付设置 → 自动续费」、支付宝「设置 → 支付设置 → 免密支付」或 Apple 账户「订阅」。',
+  en: 'Check auto-renewal in WeChat Pay, Alipay Pre-authorized Payments, or Apple Account Subscriptions.',
+};
+
+export const presetGroups: { key: PresetGroup; zh: string; en: string }[] = [
+  { key: 'popular', zh: '热门常用', en: 'Popular' },
+  { key: 'ai_dev', zh: 'AI 与开发', en: 'AI & Dev' },
+  { key: 'video_cn', zh: '国内影视', en: 'CN Video' },
+  { key: 'music_read', zh: '音乐与阅读', en: 'Music & Read' },
+  { key: 'cloud_docs', zh: '网盘与办公', en: 'Cloud & Docs' },
+  { key: 'shopping_life', zh: '电商与生活', en: 'Shopping & Life' },
+  { key: 'global_gaming', zh: '国际流媒与游戏', en: 'Global & Gaming' },
+  { key: 'infra_telecom', zh: '云与基础设施', en: 'Infra & Telecom' },
+];
+
+export const paymentMethodPresets = [
+  { zh: '微信支付自动扣费', en: 'WeChat Pay Auto' },
+  { zh: '支付宝自动扣款', en: 'Alipay Auto' },
+  { zh: 'Apple App Store 订阅', en: 'Apple App Store' },
+  { zh: '双币信用卡', en: 'Credit Card' },
+  { zh: 'PayPal', en: 'PayPal' },
+  { zh: '账户余额 / 礼品卡', en: 'Balance / Gift Card' },
+];
+
+export const subscriptionPresets: SubscriptionPreset[] = [
+  // --- Domestic Video (video_cn) ---
+  {
+    key: 'bilibili',
+    name: { zh: '哔哩哔哩', en: 'Bilibili' },
+    subtitle: { zh: '大会员 · ¥15/月起', en: 'Big Member · from ¥15/mo' },
+    group: 'video_cn',
+    popular: true,
+    category: 'life',
+    color: '#FB7299',
+    keywords: ['b站', 'bz', 'bilibili', '大会员', '哔哩'],
+    managementUrl: 'https://account.bilibili.com/account/big',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'yearly_promo', label: { zh: '大促年卡 · ¥108/年', en: 'Promo Annual · ¥108/yr' }, itemName: { zh: '哔哩哔哩大会员', en: 'Bilibili Big Member' }, amount: 108, currency: 'CNY', cycle: 'yearly' },
+      { id: 'yearly', label: { zh: '年度大会员 · ¥168/年', en: 'Annual · ¥168/yr' }, itemName: { zh: '哔哩哔哩大会员', en: 'Bilibili Big Member' }, amount: 168, currency: 'CNY', cycle: 'yearly' },
+      { id: 'monthly', label: { zh: '连续包月 · ¥15/月', en: 'Monthly · ¥15/mo' }, itemName: { zh: '哔哩哔哩大会员', en: 'Bilibili Big Member' }, amount: 15, currency: 'CNY', cycle: 'monthly' },
+      { id: 'quarterly', label: { zh: '连续包季 · ¥45/季', en: 'Quarterly · ¥45/qtr' }, itemName: { zh: '哔哩哔哩大会员', en: 'Bilibili Big Member' }, amount: 45, currency: 'CNY', cycle: 'quarterly' },
+    ],
+  },
+  {
+    key: 'iqiyi',
+    name: { zh: '爱奇艺', en: 'iQIYI' },
+    subtitle: { zh: '黄金 VIP · ¥25/月起', en: 'Gold VIP · from ¥25/mo' },
+    group: 'video_cn',
+    category: 'life',
+    color: '#00CC4C',
+    keywords: ['aqy', 'iqiyi', '爱奇艺', '黄金vip', '白金vip'],
+    managementUrl: 'https://vip.iqiyi.com/',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '黄金包月 · ¥25/月', en: 'Gold Monthly · ¥25/mo' }, itemName: { zh: '爱奇艺黄金 VIP', en: 'iQIYI Gold VIP' }, amount: 25, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '黄金年卡 · ¥238/年', en: 'Gold Annual · ¥238/yr' }, itemName: { zh: '爱奇艺黄金 VIP', en: 'iQIYI Gold VIP' }, amount: 238, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'tencent_video',
+    name: { zh: '腾讯视频', en: 'Tencent Video' },
+    subtitle: { zh: 'VIP / SVIP · ¥25/月起', en: 'VIP / SVIP · from ¥25/mo' },
+    group: 'video_cn',
+    category: 'life',
+    color: '#FF6F00',
+    keywords: ['txsp', 'wetv', '腾讯视频', '极光tv'],
+    managementUrl: 'https://film.qq.com/',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: 'VIP 包月 · ¥25/月', en: 'VIP Monthly · ¥25/mo' }, itemName: { zh: '腾讯视频 VIP', en: 'Tencent Video VIP' }, amount: 25, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: 'VIP 年卡 · ¥258/年', en: 'VIP Annual · ¥258/yr' }, itemName: { zh: '腾讯视频 VIP', en: 'Tencent Video VIP' }, amount: 258, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'youku',
+    name: { zh: '优酷视频', en: 'Youku' },
+    subtitle: { zh: 'VIP / 酷喵 · ¥25/月起', en: 'VIP · from ¥25/mo' },
+    group: 'video_cn',
+    category: 'life',
+    color: '#148AFF',
+    keywords: ['yk', 'youku', '优酷', '酷喵'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '优酷 VIP 包月 · ¥25/月', en: 'Monthly · ¥25/mo' }, itemName: { zh: '优酷 VIP', en: 'Youku VIP' }, amount: 25, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '优酷 VIP 年卡 · ¥228/年', en: 'Annual · ¥228/yr' }, itemName: { zh: '优酷 VIP', en: 'Youku VIP' }, amount: 228, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'mango_tv',
+    name: { zh: '芒果 TV', en: 'Mango TV' },
+    subtitle: { zh: '会员包月 · ¥22/月起', en: 'VIP · from ¥22/mo' },
+    group: 'video_cn',
+    category: 'life',
+    color: '#FF6600',
+    keywords: ['mg', 'mango', '芒果tv'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '连续包月 · ¥22/月', en: 'Monthly · ¥22/mo' }, itemName: { zh: '芒果 TV 会员', en: 'Mango TV VIP' }, amount: 22, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '年卡 · ¥218/年', en: 'Annual · ¥218/yr' }, itemName: { zh: '芒果 TV 会员', en: 'Mango TV VIP' }, amount: 218, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+
+  // --- Music & Reading (music_read) ---
+  {
+    key: 'qq_music',
+    name: { zh: 'QQ 音乐', en: 'QQ Music' },
+    subtitle: { zh: '豪华绿钻 · ¥15/月起', en: 'Green Diamond · ¥15/mo' },
+    group: 'music_read',
+    popular: true,
+    category: 'life',
+    color: '#31C27C',
+    keywords: ['qq音乐', 'qqyy', 'qqmusic', '绿钻', '豪华绿钻'],
+    managementUrl: 'https://y.qq.com/portal/vipportal/index.html',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '豪华绿钻包月 · ¥15/月', en: 'Green Diamond · ¥15/mo' }, itemName: { zh: 'QQ 音乐豪华绿钻', en: 'QQ Music VIP' }, amount: 15, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '豪华绿钻年卡 · ¥158/年', en: 'Annual · ¥158/yr' }, itemName: { zh: 'QQ 音乐豪华绿钻', en: 'QQ Music VIP' }, amount: 158, currency: 'CNY', cycle: 'yearly' },
+      { id: 'svip', label: { zh: '超级会员 · ¥30/月', en: 'Super VIP · ¥30/mo' }, itemName: { zh: 'QQ 音乐超级会员', en: 'QQ Music SVIP' }, amount: 30, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'netease_music',
+    name: { zh: '网易云音乐', en: 'NetEase Cloud Music' },
+    subtitle: { zh: '黑胶 VIP · ¥15/月起', en: 'Vinyl VIP · ¥15/mo' },
+    group: 'music_read',
+    popular: true,
+    category: 'life',
+    color: '#E60026',
+    keywords: ['网易云', 'wyy', 'netease', '黑胶', '云音乐'],
+    managementUrl: 'https://music.163.com/',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '黑胶 VIP 包月 · ¥15/月', en: 'Vinyl Monthly · ¥15/mo' }, itemName: { zh: '网易云音乐黑胶 VIP', en: 'NetEase Vinyl VIP' }, amount: 15, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '黑胶 VIP 年卡 · ¥158/年', en: 'Vinyl Annual · ¥158/yr' }, itemName: { zh: '网易云音乐黑胶 VIP', en: 'NetEase Vinyl VIP' }, amount: 158, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'apple_music',
+    name: { zh: 'Apple Music', en: 'Apple Music' },
+    subtitle: { zh: '国区 ¥11/月 · 美区 $10.99', en: 'CN ¥11/mo · US $10.99' },
+    group: 'music_read',
+    category: 'life',
+    color: '#FA243C',
+    keywords: ['apple music', '苹果音乐', 'am'],
+    managementUrl: 'https://music.apple.com/',
+    plans: [
+      { id: 'cn_individual', label: { zh: '国区个人 · ¥11/月', en: 'CN Individual · ¥11/mo' }, itemName: { zh: 'Apple Music', en: 'Apple Music' }, amount: 11, currency: 'CNY', cycle: 'monthly' },
+      { id: 'cn_student', label: { zh: '国区学生 · ¥6/月', en: 'CN Student · ¥6/mo' }, itemName: { zh: 'Apple Music 学生', en: 'Apple Music Student' }, amount: 6, currency: 'CNY', cycle: 'monthly' },
+      { id: 'us_individual', label: { zh: '美区个人 · $10.99/月', en: 'US Individual · $10.99/mo' }, itemName: { zh: 'Apple Music (US)', en: 'Apple Music (US)' }, amount: 10.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'spotify',
+    name: { zh: 'Spotify', en: 'Spotify' },
+    subtitle: { zh: 'Premium · $11.99/月', en: 'Premium · $11.99/mo' },
+    group: 'music_read',
+    popular: true,
+    category: 'life',
+    color: '#1DB954',
+    keywords: ['spotify', '声破天'],
+    managementUrl: 'https://www.spotify.com/account/overview/',
+    plans: [
+      { id: 'us', label: { zh: '美区个人 · $11.99/月', en: 'US Individual · $11.99/mo' }, itemName: { zh: 'Spotify Premium', en: 'Spotify Premium' }, amount: 11.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'hk', label: { zh: '港区个人 · HK$68/月', en: 'HK Individual · HK$68/mo' }, itemName: { zh: 'Spotify Premium', en: 'Spotify Premium' }, amount: 68, currency: 'HKD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'weread',
+    name: { zh: '微信读书', en: 'WeRead' },
+    subtitle: { zh: '付费无限卡 · ¥19/月起', en: 'Unlimited Card · ¥19/mo' },
+    group: 'music_read',
+    popular: true,
+    category: 'life',
+    color: '#1B88EE',
+    keywords: ['微信读书', 'wxds', 'weread', '无限卡'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '连续包月 · ¥19/月', en: 'Monthly · ¥19/mo' }, itemName: { zh: '微信读书付费无限卡', en: 'WeRead Unlimited' }, amount: 19, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '年卡 · ¥168/年', en: 'Annual · ¥168/yr' }, itemName: { zh: '微信读书付费无限卡', en: 'WeRead Unlimited' }, amount: 168, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'zhihu',
+    name: { zh: '知乎盐选', en: 'Zhihu Salt' },
+    subtitle: { zh: '盐选会员 · ¥19/月起', en: 'Salt VIP · ¥19/mo' },
+    group: 'music_read',
+    category: 'life',
+    color: '#0066FF',
+    keywords: ['知乎', 'zhihu', '盐选'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '连续包月 · ¥19/月', en: 'Monthly · ¥19/mo' }, itemName: { zh: '知乎盐选会员', en: 'Zhihu Salt VIP' }, amount: 19, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '年卡 · ¥198/年', en: 'Annual · ¥198/yr' }, itemName: { zh: '知乎盐选会员', en: 'Zhihu Salt VIP' }, amount: 198, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+
+  // --- AI & Dev Tools (ai_dev) ---
+  {
+    key: 'chatgpt',
+    name: { zh: 'ChatGPT', en: 'ChatGPT' },
+    subtitle: { zh: 'Plus · $20/月', en: 'Plus · $20/mo' },
+    group: 'ai_dev',
+    popular: true,
+    category: 'ai',
+    color: '#10A37F',
+    keywords: ['chatgpt', 'gpt', 'openai', 'plus'],
+    managementUrl: 'https://chatgpt.com/#settings/Subscription',
+    plans: [
+      { id: 'plus', label: { zh: 'ChatGPT Plus · $20/月', en: 'Plus · $20/mo' }, itemName: { zh: 'ChatGPT Plus', en: 'ChatGPT Plus' }, amount: 20, currency: 'USD', cycle: 'monthly' },
+      { id: 'pro', label: { zh: 'ChatGPT Pro · $200/月', en: 'Pro · $200/mo' }, itemName: { zh: 'ChatGPT Pro', en: 'ChatGPT Pro' }, amount: 200, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'claude',
+    name: { zh: 'Claude', en: 'Claude' },
+    subtitle: { zh: 'Pro · $20/月', en: 'Pro · $20/mo' },
+    group: 'ai_dev',
+    popular: true,
+    category: 'ai',
+    color: '#D97757',
+    keywords: ['claude', 'anthropic', '克劳德'],
+    managementUrl: 'https://claude.ai/settings/billing',
+    plans: [
+      { id: 'pro', label: { zh: 'Claude Pro · $20/月', en: 'Pro · $20/mo' }, itemName: { zh: 'Claude Pro', en: 'Claude Pro' }, amount: 20, currency: 'USD', cycle: 'monthly' },
+      { id: 'max', label: { zh: 'Claude Max · $100/月', en: 'Max · $100/mo' }, itemName: { zh: 'Claude Max', en: 'Claude Max' }, amount: 100, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'cursor',
+    name: { zh: 'Cursor', en: 'Cursor' },
+    subtitle: { zh: 'Pro · $20/月', en: 'Pro · $20/mo' },
+    group: 'ai_dev',
+    popular: true,
+    category: 'ai',
+    color: '#18181B',
+    darkInvert: true,
+    keywords: ['cursor', 'ai编辑器', 'ide'],
+    managementUrl: 'https://www.cursor.com/settings',
+    plans: [
+      { id: 'pro_monthly', label: { zh: 'Pro 月付 · $20/月', en: 'Pro Monthly · $20/mo' }, itemName: { zh: 'Cursor Pro', en: 'Cursor Pro' }, amount: 20, currency: 'USD', cycle: 'monthly' },
+      { id: 'pro_yearly', label: { zh: 'Pro 年付 · $192/年', en: 'Pro Annual · $192/yr' }, itemName: { zh: 'Cursor Pro', en: 'Cursor Pro' }, amount: 192, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'github_copilot',
+    name: { zh: 'GitHub Copilot', en: 'GitHub Copilot' },
+    subtitle: { zh: 'Pro · $10/月 或 $100/年', en: 'Pro · $10/mo or $100/yr' },
+    group: 'ai_dev',
+    popular: true,
+    category: 'ai',
+    color: '#24292F',
+    darkInvert: true,
+    keywords: ['github', 'copilot', 'gh'],
+    managementUrl: 'https://github.com/settings/billing',
+    plans: [
+      { id: 'monthly', label: { zh: 'Pro 月付 · $10/月', en: 'Pro Monthly · $10/mo' }, itemName: { zh: 'GitHub Copilot', en: 'GitHub Copilot' }, amount: 10, currency: 'USD', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: 'Pro 年付 · $100/年', en: 'Pro Annual · $100/yr' }, itemName: { zh: 'GitHub Copilot', en: 'GitHub Copilot' }, amount: 100, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'gemini',
+    name: { zh: 'Google Gemini', en: 'Google Gemini' },
+    subtitle: { zh: 'AI Pro · $19.99/月', en: 'AI Pro · $19.99/mo' },
+    group: 'ai_dev',
+    category: 'ai',
+    color: '#4285F4',
+    keywords: ['gemini', 'google one', 'bard', '谷歌'],
+    managementUrl: 'https://one.google.com/settings',
+    plans: [
+      { id: 'ai_pro', label: { zh: 'Google AI Pro · $19.99/月', en: 'AI Pro · $19.99/mo' }, itemName: { zh: 'Google One AI Pro', en: 'Google One AI Pro' }, amount: 19.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'storage_2tb', label: { zh: 'Google One 2TB · $9.99/月', en: '2TB Storage · $9.99/mo' }, itemName: { zh: 'Google One 2TB', en: 'Google One 2TB' }, amount: 9.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'deepseek',
+    name: { zh: 'DeepSeek', en: 'DeepSeek' },
+    subtitle: { zh: 'API 充值与服务', en: 'API & Platform' },
+    group: 'ai_dev',
+    category: 'ai',
+    color: '#4D6BFE',
+    keywords: ['deepseek', 'ds', '深度求索'],
+    managementUrl: 'https://platform.deepseek.com/',
+    plans: [
+      { id: 'api_cny', label: { zh: 'API 额度补充 · ¥50', en: 'API Top-up · ¥50' }, itemName: { zh: 'DeepSeek API', en: 'DeepSeek API' }, amount: 50, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'kimi',
+    name: { zh: 'Kimi 智能助手', en: 'Kimi AI' },
+    subtitle: { zh: '会员订阅 · ¥52/月起', en: 'Membership · ¥52/mo' },
+    group: 'ai_dev',
+    category: 'ai',
+    color: '#111827',
+    keywords: ['kimi', '月之暗面', 'moonshot'],
+    managementUrl: 'https://kimi.moonshot.cn/',
+    plans: [
+      { id: 'monthly', label: { zh: '月度探索版 · ¥52/月', en: 'Monthly · ¥52/mo' }, itemName: { zh: 'Kimi 会员', en: 'Kimi Membership' }, amount: 52, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'perplexity',
+    name: { zh: 'Perplexity', en: 'Perplexity' },
+    subtitle: { zh: 'Pro · $20/月', en: 'Pro · $20/mo' },
+    group: 'ai_dev',
+    category: 'ai',
+    color: '#20808D',
+    keywords: ['perplexity', 'pplx', 'ai搜索'],
+    managementUrl: 'https://www.perplexity.ai/settings/account',
+    plans: [
+      { id: 'pro', label: { zh: 'Pro 月付 · $20/月', en: 'Pro Monthly · $20/mo' }, itemName: { zh: 'Perplexity Pro', en: 'Perplexity Pro' }, amount: 20, currency: 'USD', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: 'Pro 年付 · $200/年', en: 'Pro Annual · $200/yr' }, itemName: { zh: 'Perplexity Pro', en: 'Perplexity Pro' }, amount: 200, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'midjourney',
+    name: { zh: 'Midjourney', en: 'Midjourney' },
+    subtitle: { zh: 'Basic $10 · Standard $30', en: 'Basic $10 · Standard $30' },
+    group: 'ai_dev',
+    category: 'ai',
+    color: '#1E293B',
+    darkInvert: true,
+    keywords: ['midjourney', 'mj', 'ai绘画'],
+    managementUrl: 'https://www.midjourney.com/account',
+    plans: [
+      { id: 'basic', label: { zh: 'Basic · $10/月', en: 'Basic · $10/mo' }, itemName: { zh: 'Midjourney Basic', en: 'Midjourney Basic' }, amount: 10, currency: 'USD', cycle: 'monthly' },
+      { id: 'standard', label: { zh: 'Standard · $30/月', en: 'Standard · $30/mo' }, itemName: { zh: 'Midjourney Standard', en: 'Midjourney Standard' }, amount: 30, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'jetbrains',
+    name: { zh: 'JetBrains', en: 'JetBrains' },
+    subtitle: { zh: 'IDE / All Products Pack', en: 'IDE / All Products Pack' },
+    group: 'ai_dev',
+    category: 'software',
+    color: '#FF318C',
+    keywords: ['jetbrains', 'idea', 'goland', 'webstorm', 'pycharm'],
+    managementUrl: 'https://account.jetbrains.com/licenses',
+    plans: [
+      { id: 'single_ide', label: { zh: '单款 IDE 个人年付 · $109/年', en: 'Single IDE · $109/yr' }, itemName: { zh: 'JetBrains IDE', en: 'JetBrains IDE' }, amount: 109, currency: 'USD', cycle: 'yearly' },
+      { id: 'all_pack', label: { zh: '全家桶 All Products · $289/年', en: 'All Products · $289/yr' }, itemName: { zh: 'JetBrains All Products', en: 'JetBrains All Products' }, amount: 289, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'vercel',
+    name: { zh: 'Vercel', en: 'Vercel' },
+    subtitle: { zh: 'Pro · $20/月', en: 'Pro · $20/mo' },
+    group: 'ai_dev',
+    category: 'cloud',
+    color: '#171717',
+    darkInvert: true,
+    keywords: ['vercel', 'nextjs'],
+    managementUrl: 'https://vercel.com/dashboard',
+    plans: [
+      { id: 'pro', label: { zh: 'Vercel Pro · $20/月', en: 'Pro · $20/mo' }, itemName: { zh: 'Vercel Pro', en: 'Vercel Pro' }, amount: 20, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'raycast',
+    name: { zh: 'Raycast', en: 'Raycast' },
+    subtitle: { zh: 'Pro · $8/月起', en: 'Pro · from $8/mo' },
+    group: 'ai_dev',
+    category: 'software',
+    color: '#FF6363',
+    keywords: ['raycast', 'mac效率'],
+    plans: [
+      { id: 'pro_yearly', label: { zh: 'Pro 年付 · $96/年', en: 'Pro Annual · $96/yr' }, itemName: { zh: 'Raycast Pro', en: 'Raycast Pro' }, amount: 96, currency: 'USD', cycle: 'yearly' },
+      { id: 'pro_monthly', label: { zh: 'Pro 月付 · $10/月', en: 'Pro Monthly · $10/mo' }, itemName: { zh: 'Raycast Pro', en: 'Raycast Pro' }, amount: 10, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+
+  // --- Cloud Storage & Productivity (cloud_docs) ---
+  {
+    key: 'icloud',
+    name: { zh: 'iCloud+', en: 'iCloud+' },
+    subtitle: { zh: '50GB ¥6 · 200GB ¥21 · 2TB ¥68', en: '50GB · 200GB · 2TB' },
+    group: 'cloud_docs',
+    popular: true,
+    category: 'software',
+    color: '#007AFF',
+    keywords: ['icloud', 'apple', '苹果云空间', '云盘'],
+    cancelTip: { zh: '退订路径：iPhone/Mac「设置 → 顶部 Apple 账户 → iCloud → 管理账户存储空间」。', en: 'Manage in Settings -> Apple Account -> iCloud -> Manage Account Storage.' },
+    plans: [
+      { id: 'cn_200g', label: { zh: '国区 200GB · ¥21/月', en: 'CN 200GB · ¥21/mo' }, itemName: { zh: 'iCloud+ 200GB', en: 'iCloud+ 200GB' }, amount: 21, currency: 'CNY', cycle: 'monthly' },
+      { id: 'cn_50g', label: { zh: '国区 50GB · ¥6/月', en: 'CN 50GB · ¥6/mo' }, itemName: { zh: 'iCloud+ 50GB', en: 'iCloud+ 50GB' }, amount: 6, currency: 'CNY', cycle: 'monthly' },
+      { id: 'cn_2tb', label: { zh: '国区 2TB · ¥68/月', en: 'CN 2TB · ¥68/mo' }, itemName: { zh: 'iCloud+ 2TB', en: 'iCloud+ 2TB' }, amount: 68, currency: 'CNY', cycle: 'monthly' },
+      { id: 'us_200g', label: { zh: '美区 200GB · $2.99/月', en: 'US 200GB · $2.99/mo' }, itemName: { zh: 'iCloud+ 200GB (US)', en: 'iCloud+ 200GB (US)' }, amount: 2.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'baidu_pan',
+    name: { zh: '百度网盘', en: 'Baidu Netdisk' },
+    subtitle: { zh: '超级会员 SVIP · ¥197/年起', en: 'SVIP · from ¥197/yr' },
+    group: 'cloud_docs',
+    popular: true,
+    category: 'software',
+    color: '#06A7FF',
+    keywords: ['百度网盘', 'bdwp', 'baidu', '百度云', 'svip'],
+    managementUrl: 'https://pan.baidu.com/buy/center',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'yearly_promo', label: { zh: '大促年卡 · ¥197/年', en: 'Promo Annual · ¥197/yr' }, itemName: { zh: '百度网盘超级会员', en: 'Baidu Netdisk SVIP' }, amount: 197, currency: 'CNY', cycle: 'yearly' },
+      { id: 'yearly', label: { zh: '连续包年 · ¥263/年', en: 'Annual · ¥263/yr' }, itemName: { zh: '百度网盘超级会员', en: 'Baidu Netdisk SVIP' }, amount: 263, currency: 'CNY', cycle: 'yearly' },
+      { id: 'monthly', label: { zh: '连续包月 · ¥25/月', en: 'Monthly · ¥25/mo' }, itemName: { zh: '百度网盘超级会员', en: 'Baidu Netdisk SVIP' }, amount: 25, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'alipan',
+    name: { zh: '阿里云盘', en: 'Alibaba Cloud Drive' },
+    subtitle: { zh: '超级会员 SVIP', en: 'SVIP Storage' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#636DFF',
+    keywords: ['阿里云盘', 'alyp', 'alipan', 'adrive'],
+    managementUrl: 'https://www.alipan.com/',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'yearly', label: { zh: 'SVIP 年卡 · ¥198/年', en: 'SVIP Annual · ¥198/yr' }, itemName: { zh: '阿里云盘 SVIP', en: 'Alipan SVIP' }, amount: 198, currency: 'CNY', cycle: 'yearly' },
+      { id: 'monthly', label: { zh: 'SVIP 包月 · ¥20/月', en: 'SVIP Monthly · ¥20/mo' }, itemName: { zh: '阿里云盘 SVIP', en: 'Alipan SVIP' }, amount: 20, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'quark',
+    name: { zh: '夸克网盘', en: 'Quark Drive' },
+    subtitle: { zh: 'SVIP · 88VIP 可低价购', en: 'SVIP Cloud Drive' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#5256FF',
+    keywords: ['夸克', 'quark', 'kkwp'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '连续包月 · ¥19/月', en: 'Monthly · ¥19/mo' }, itemName: { zh: '夸克网盘 SVIP', en: 'Quark SVIP' }, amount: 19, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: 'SVIP 年卡 · ¥168/年', en: 'Annual · ¥168/yr' }, itemName: { zh: '夸克网盘 SVIP', en: 'Quark SVIP' }, amount: 168, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'wps',
+    name: { zh: 'WPS Office', en: 'WPS Office' },
+    subtitle: { zh: '超级会员 / 大会员', en: 'Super / Pro VIP' },
+    group: 'cloud_docs',
+    popular: true,
+    category: 'software',
+    color: '#E3352B',
+    keywords: ['wps', '金山文档', 'office'],
+    managementUrl: 'https://vip.wps.cn/',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'yearly', label: { zh: '超级会员年卡 · ¥148/年', en: 'Super Annual · ¥148/yr' }, itemName: { zh: 'WPS 超级会员', en: 'WPS Super VIP' }, amount: 148, currency: 'CNY', cycle: 'yearly' },
+      { id: 'monthly', label: { zh: '连续包月 · ¥15/月', en: 'Monthly · ¥15/mo' }, itemName: { zh: 'WPS 超级会员', en: 'WPS Super VIP' }, amount: 15, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'microsoft_365',
+    name: { zh: 'Microsoft 365', en: 'Microsoft 365' },
+    subtitle: { zh: 'Office + 1TB OneDrive', en: 'Office + 1TB OneDrive' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#D83B01',
+    keywords: ['microsoft', 'office365', 'm365', 'onedrive', '微软'],
+    managementUrl: 'https://account.microsoft.com/services',
+    plans: [
+      { id: 'personal', label: { zh: '个人版年付 · ¥398/年', en: 'Personal · ¥398/yr' }, itemName: { zh: 'Microsoft 365 个人版', en: 'Microsoft 365 Personal' }, amount: 398, currency: 'CNY', cycle: 'yearly' },
+      { id: 'family', label: { zh: '家庭版年付 · ¥498/年', en: 'Family · ¥498/yr' }, itemName: { zh: 'Microsoft 365 家庭版', en: 'Microsoft 365 Family' }, amount: 498, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'notion',
+    name: { zh: 'Notion', en: 'Notion' },
+    subtitle: { zh: 'Plus · $10/月起', en: 'Plus · from $10/mo' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#191919',
+    darkInvert: true,
+    keywords: ['notion', '笔记'],
+    plans: [
+      { id: 'plus_monthly', label: { zh: 'Plus 月付 · $12/月', en: 'Plus Monthly · $12/mo' }, itemName: { zh: 'Notion Plus', en: 'Notion Plus' }, amount: 12, currency: 'USD', cycle: 'monthly' },
+      { id: 'plus_yearly', label: { zh: 'Plus 年付 · $120/年', en: 'Plus Annual · $120/yr' }, itemName: { zh: 'Notion Plus', en: 'Notion Plus' }, amount: 120, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'ticktick',
+    name: { zh: '滴答清单', en: 'TickTick' },
+    subtitle: { zh: '高级会员 · ¥139/年', en: 'Premium · ¥139/yr' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#4772FA',
+    keywords: ['滴答清单', 'dida', 'ticktick', '待办'],
+    managementUrl: 'https://dida365.com/',
+    plans: [
+      { id: 'yearly', label: { zh: '高级会员年卡 · ¥139/年', en: 'Premium Annual · ¥139/yr' }, itemName: { zh: '滴答清单高级会员', en: 'TickTick Premium' }, amount: 139, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'onepassword',
+    name: { zh: '1Password', en: '1Password' },
+    subtitle: { zh: 'Individual · $35.88/年', en: 'Individual · $35.88/yr' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#0572EC',
+    keywords: ['1password', '1p', '密码'],
+    managementUrl: 'https://my.1password.com/',
+    plans: [
+      { id: 'individual', label: { zh: '个人版年付 · $35.88/年', en: 'Individual · $35.88/yr' }, itemName: { zh: '1Password', en: '1Password' }, amount: 35.88, currency: 'USD', cycle: 'yearly' },
+      { id: 'families', label: { zh: '家庭版年付 · $59.88/年', en: 'Families · $59.88/yr' }, itemName: { zh: '1Password Families', en: '1Password Families' }, amount: 59.88, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'bitwarden',
+    name: { zh: 'Bitwarden', en: 'Bitwarden' },
+    subtitle: { zh: 'Premium · $10/年', en: 'Premium · $10/yr' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#175DDC',
+    keywords: ['bitwarden', 'bw', '密码'],
+    managementUrl: 'https://vault.bitwarden.com/',
+    plans: [
+      { id: 'premium', label: { zh: 'Premium 年付 · $10/年', en: 'Premium · $10/yr' }, itemName: { zh: 'Bitwarden Premium', en: 'Bitwarden Premium' }, amount: 10, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'figma',
+    name: { zh: 'Figma', en: 'Figma' },
+    subtitle: { zh: 'Professional · $15/月', en: 'Professional · $15/mo' },
+    group: 'cloud_docs',
+    category: 'software',
+    color: '#F24E1E',
+    keywords: ['figma', '设计'],
+    plans: [
+      { id: 'pro', label: { zh: 'Professional · $15/月', en: 'Professional · $15/mo' }, itemName: { zh: 'Figma Professional', en: 'Figma Professional' }, amount: 15, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+
+  // --- Shopping, Social & Lifestyle (shopping_life) ---
+  {
+    key: 'vip_88',
+    name: { zh: '淘宝 88VIP', en: 'Taobao 88VIP' },
+    subtitle: { zh: '生活卡 / 全能卡 · ¥88/年', en: 'Lifestyle Card · ¥88/yr' },
+    group: 'shopping_life',
+    popular: true,
+    category: 'life',
+    color: '#FF5000',
+    keywords: ['88vip', '淘宝', '天猫', 'taobao'],
+    plans: [
+      { id: 'life', label: { zh: '88VIP 生活卡 · ¥88/年', en: 'Lifestyle · ¥88/yr' }, itemName: { zh: '淘宝 88VIP', en: 'Taobao 88VIP' }, amount: 88, currency: 'CNY', cycle: 'yearly' },
+      { id: 'all', label: { zh: '88VIP 全能卡 · ¥168/年', en: 'All-in-One · ¥168/yr' }, itemName: { zh: '淘宝 88VIP 全能卡', en: 'Taobao 88VIP All-in-One' }, amount: 168, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'jd_plus',
+    name: { zh: '京东 PLUS 会员', en: 'JD PLUS' },
+    subtitle: { zh: '京典年卡 · ¥99/年', en: 'Classic Annual · ¥99/yr' },
+    group: 'shopping_life',
+    popular: true,
+    category: 'life',
+    color: '#E1251B',
+    keywords: ['京东', 'jd', 'plus', '京典卡'],
+    managementUrl: 'https://plus.jd.com/',
+    plans: [
+      { id: 'yearly', label: { zh: '京典年卡 · ¥99/年', en: 'Annual · ¥99/yr' }, itemName: { zh: '京东 PLUS 会员', en: 'JD PLUS' }, amount: 99, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'meituan',
+    name: { zh: '美团神会员', en: 'Meituan VIP' },
+    subtitle: { zh: '外卖神券省钱包 · ¥15/月', en: 'Monthly Coupons · ¥15/mo' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#FF9900',
+    keywords: ['美团', 'meituan', '外卖', '神会员'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: '月卡 · ¥15/月', en: 'Monthly · ¥15/mo' }, itemName: { zh: '美团神会员', en: 'Meituan VIP' }, amount: 15, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'sams_club',
+    name: { zh: '山姆会员商店', en: 'Sam\'s Club' },
+    subtitle: { zh: '普通卡 ¥260 · 卓越卡 ¥680/年', en: '¥260 / ¥680 per year' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#0062AD',
+    keywords: ['山姆', 'sams', '沃尔玛', '会员店'],
+    plans: [
+      { id: 'standard', label: { zh: '个人会籍 · ¥260/年', en: 'Standard · ¥260/yr' }, itemName: { zh: '山姆会员卡', en: 'Sam\'s Club Membership' }, amount: 260, currency: 'CNY', cycle: 'yearly' },
+      { id: 'excellence', label: { zh: '卓越会籍 · ¥680/年', en: 'Plus · ¥680/yr' }, itemName: { zh: '山姆卓越会员卡', en: 'Sam\'s Club Plus' }, amount: 680, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'qq_svip',
+    name: { zh: 'QQ 超级会员', en: 'QQ SVIP' },
+    subtitle: { zh: 'SVIP · ¥20/月', en: 'SVIP · ¥20/mo' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#12B7F5',
+    keywords: ['qq', 'svip', '超级会员', '大会员'],
+    managementUrl: 'https://vip.qq.com/',
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'monthly', label: { zh: 'SVIP 包月 · ¥20/月', en: 'Monthly · ¥20/mo' }, itemName: { zh: 'QQ 超级会员', en: 'QQ SVIP' }, amount: 20, currency: 'CNY', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: 'SVIP 年费 · ¥228/年', en: 'Annual · ¥228/yr' }, itemName: { zh: 'QQ 超级会员', en: 'QQ SVIP' }, amount: 228, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'weibo',
+    name: { zh: '微博会员', en: 'Weibo VIP' },
+    subtitle: { zh: 'VIP / SVIP · ¥10/月起', en: 'VIP · from ¥10/mo' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#E6162D',
+    keywords: ['微博', 'weibo', '渣浪'],
+    cancelTip: cnAutoPayTip,
+    plans: [
+      { id: 'yearly', label: { zh: 'VIP 年卡 · ¥108/年', en: 'Annual · ¥108/yr' }, itemName: { zh: '微博 VIP', en: 'Weibo VIP' }, amount: 108, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'x_premium',
+    name: { zh: 'X Premium', en: 'X Premium' },
+    subtitle: { zh: 'Basic $3 · Premium $8/月', en: 'Basic $3 · Premium $8/mo' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#14171A',
+    darkInvert: true,
+    keywords: ['x', 'twitter', '推特', '蓝标'],
+    managementUrl: 'https://x.com/i/premium_sign_up',
+    plans: [
+      { id: 'premium', label: { zh: 'Premium 月付 · $8/月', en: 'Premium · $8/mo' }, itemName: { zh: 'X Premium', en: 'X Premium' }, amount: 8, currency: 'USD', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: 'Premium 年付 · $84/年', en: 'Premium Annual · $84/yr' }, itemName: { zh: 'X Premium', en: 'X Premium' }, amount: 84, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'telegram',
+    name: { zh: 'Telegram Premium', en: 'Telegram Premium' },
+    subtitle: { zh: '大会员 · $4.99/月', en: 'Premium · $4.99/mo' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#26A5E4',
+    keywords: ['telegram', 'tg', '电报'],
+    plans: [
+      { id: 'monthly', label: { zh: '月付 · $4.99/月', en: 'Monthly · $4.99/mo' }, itemName: { zh: 'Telegram Premium', en: 'Telegram Premium' }, amount: 4.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'yearly', label: { zh: '年付 · $35.99/年', en: 'Annual · $35.99/yr' }, itemName: { zh: 'Telegram Premium', en: 'Telegram Premium' }, amount: 35.99, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'discord',
+    name: { zh: 'Discord Nitro', en: 'Discord Nitro' },
+    subtitle: { zh: 'Nitro Basic $2.99 · Full $9.99', en: 'Nitro · $2.99 / $9.99' },
+    group: 'shopping_life',
+    category: 'life',
+    color: '#5865F2',
+    keywords: ['discord', 'nitro'],
+    plans: [
+      { id: 'nitro', label: { zh: 'Nitro · $9.99/月', en: 'Nitro · $9.99/mo' }, itemName: { zh: 'Discord Nitro', en: 'Discord Nitro' }, amount: 9.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'basic', label: { zh: 'Nitro Basic · $2.99/月', en: 'Basic · $2.99/mo' }, itemName: { zh: 'Discord Nitro Basic', en: 'Discord Nitro Basic' }, amount: 2.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+
+  // --- Global Streaming & Gaming (global_gaming) ---
+  {
+    key: 'youtube',
+    name: { zh: 'YouTube Premium', en: 'YouTube Premium' },
+    subtitle: { zh: '免广告 + Music · $13.99/月', en: 'Ad-free + Music · $13.99/mo' },
+    group: 'global_gaming',
+    popular: true,
+    category: 'life',
+    color: '#FF0000',
+    keywords: ['youtube', 'ytb', '油管'],
+    managementUrl: 'https://www.youtube.com/paid_memberships',
+    plans: [
+      { id: 'us', label: { zh: '美区个人 · $13.99/月', en: 'US Individual · $13.99/mo' }, itemName: { zh: 'YouTube Premium', en: 'YouTube Premium' }, amount: 13.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'hk', label: { zh: '港区个人 · HK$78/月', en: 'HK Individual · HK$78/mo' }, itemName: { zh: 'YouTube Premium (HK)', en: 'YouTube Premium (HK)' }, amount: 78, currency: 'HKD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'netflix',
+    name: { zh: 'Netflix', en: 'Netflix' },
+    subtitle: { zh: 'Standard $15.49 · 4K $22.99', en: 'Standard · Premium 4K' },
+    group: 'global_gaming',
+    popular: true,
+    category: 'life',
+    color: '#E50914',
+    keywords: ['netflix', 'nf', '奈飞', '网飞'],
+    managementUrl: 'https://www.netflix.com/account',
+    plans: [
+      { id: 'standard', label: { zh: 'Standard · $15.49/月', en: 'Standard · $15.49/mo' }, itemName: { zh: 'Netflix Standard', en: 'Netflix Standard' }, amount: 15.49, currency: 'USD', cycle: 'monthly' },
+      { id: 'premium', label: { zh: 'Premium 4K · $22.99/月', en: 'Premium 4K · $22.99/mo' }, itemName: { zh: 'Netflix Premium', en: 'Netflix Premium' }, amount: 22.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'hk_premium', label: { zh: '港区高级版 · HK$108/月', en: 'HK Premium · HK$108/mo' }, itemName: { zh: 'Netflix (HK)', en: 'Netflix (HK)' }, amount: 108, currency: 'HKD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'disney_plus',
+    name: { zh: 'Disney+', en: 'Disney+' },
+    subtitle: { zh: '迪士尼流媒体订阅', en: 'Disney Streaming' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#0057D8',
+    keywords: ['disney', '迪士尼'],
+    managementUrl: 'https://www.disneyplus.com/account',
+    plans: [
+      { id: 'monthly', label: { zh: '美区月付 · $15.99/月', en: 'Monthly · $15.99/mo' }, itemName: { zh: 'Disney+', en: 'Disney+' }, amount: 15.99, currency: 'USD', cycle: 'monthly' },
+      { id: 'hk_yearly', label: { zh: '港区年付 · HK$738/年', en: 'HK Annual · HK$738/yr' }, itemName: { zh: 'Disney+ (HK)', en: 'Disney+ (HK)' }, amount: 738, currency: 'HKD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'apple_one',
+    name: { zh: 'Apple One', en: 'Apple One' },
+    subtitle: { zh: 'iCloud + Music + TV + Arcade', en: 'All-in-One Apple Bundle' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#1D1D1F',
+    darkInvert: true,
+    keywords: ['apple one', '苹果全家桶', 'apple tv'],
+    plans: [
+      { id: 'individual', label: { zh: '美区个人 · $19.95/月', en: 'US Individual · $19.95/mo' }, itemName: { zh: 'Apple One', en: 'Apple One' }, amount: 19.95, currency: 'USD', cycle: 'monthly' },
+      { id: 'premier', label: { zh: '美区家庭尊享 · $37.95/月', en: 'US Premier · $37.95/mo' }, itemName: { zh: 'Apple One Premier', en: 'Apple One Premier' }, amount: 37.95, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'max_hbo',
+    name: { zh: 'Max (HBO)', en: 'Max (HBO)' },
+    subtitle: { zh: 'HBO 影视订阅', en: 'HBO Streaming' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#002BE7',
+    keywords: ['max', 'hbo'],
+    plans: [
+      { id: 'standard', label: { zh: 'Ad-Free · $16.99/月', en: 'Ad-Free · $16.99/mo' }, itemName: { zh: 'Max Ad-Free', en: 'Max Ad-Free' }, amount: 16.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'twitch',
+    name: { zh: 'Twitch Turbo', en: 'Twitch Turbo' },
+    subtitle: { zh: '全站免广告 · $11.99/月', en: 'Ad-free · $11.99/mo' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#9146FF',
+    keywords: ['twitch', '直播'],
+    plans: [
+      { id: 'turbo', label: { zh: 'Twitch Turbo · $11.99/月', en: 'Turbo · $11.99/mo' }, itemName: { zh: 'Twitch Turbo', en: 'Twitch Turbo' }, amount: 11.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'ps_plus',
+    name: { zh: 'PlayStation Plus', en: 'PlayStation Plus' },
+    subtitle: { zh: '港服一/二/三档会员', en: 'Essential / Extra / Deluxe' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#00439C',
+    keywords: ['psn', 'ps+', 'playstation', '索尼', 'ps5'],
+    plans: [
+      { id: 'hk_extra', label: { zh: '港服二档升级 · HK$705/年', en: 'HK Extra · HK$705/yr' }, itemName: { zh: 'PS Plus 二档 (港服)', en: 'PS Plus Extra (HK)' }, amount: 705, currency: 'HKD', cycle: 'yearly' },
+      { id: 'hk_essential', label: { zh: '港服一档基本 · HK$425/年', en: 'HK Essential · HK$425/yr' }, itemName: { zh: 'PS Plus 一档 (港服)', en: 'PS Plus Essential (HK)' }, amount: 425, currency: 'HKD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'xbox',
+    name: { zh: 'Xbox Game Pass', en: 'Xbox Game Pass' },
+    subtitle: { zh: 'PC Game Pass / XGPU', en: 'PC Game Pass / Ultimate' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#107C10',
+    keywords: ['xbox', 'xgp', 'xgpu', '微软游戏'],
+    plans: [
+      { id: 'pc_hk', label: { zh: '港区 PC Game Pass · HK$49/月', en: 'HK PC · HK$49/mo' }, itemName: { zh: 'PC Game Pass', en: 'PC Game Pass' }, amount: 49, currency: 'HKD', cycle: 'monthly' },
+      { id: 'ultimate', label: { zh: 'Ultimate · $19.99/月', en: 'Ultimate · $19.99/mo' }, itemName: { zh: 'Xbox Game Pass Ultimate', en: 'Xbox Game Pass Ultimate' }, amount: 19.99, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'nintendo',
+    name: { zh: 'Nintendo Switch Online', en: 'Nintendo Switch Online' },
+    subtitle: { zh: '日服/港服 NSO 联机年费', en: 'NSO Membership' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#E60012',
+    keywords: ['nintendo', 'switch', 'nso', '任天堂'],
+    plans: [
+      { id: 'jp_individual', label: { zh: '日服个人年卡 · ¥2400 JPY/年', en: 'JP Annual · ¥2,400/yr' }, itemName: { zh: 'Switch Online (日服)', en: 'Switch Online (JP)' }, amount: 2400, currency: 'JPY', cycle: 'yearly' },
+      { id: 'hk_individual', label: { zh: '港服个人年卡 · HK$155/年', en: 'HK Annual · HK$155/yr' }, itemName: { zh: 'Switch Online (港服)', en: 'Switch Online (HK)' }, amount: 155, currency: 'HKD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'steam',
+    name: { zh: 'Steam', en: 'Steam' },
+    subtitle: { zh: '游戏通行证与社区订阅', en: 'Game Passes & Subscriptions' },
+    group: 'global_gaming',
+    category: 'life',
+    color: '#1B2838',
+    darkInvert: true,
+    keywords: ['steam', '蒸汽平台', '游戏'],
+    plans: [
+      { id: 'monthly', label: { zh: '游戏月度订阅 · ¥38/月', en: 'Monthly Pass · ¥38/mo' }, itemName: { zh: 'Steam 游戏订阅', en: 'Steam Subscription' }, amount: 38, currency: 'CNY', cycle: 'monthly' },
+    ],
+  },
+
+  // --- Cloud, Infra, Domains & Telecom (infra_telecom) ---
+  {
+    key: 'aliyun',
+    name: { zh: '阿里云', en: 'Alibaba Cloud' },
+    subtitle: { zh: '轻量服务器 / ECS / 域名续费', en: 'ECS / Lightweight / Domains' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#FF6A00',
+    keywords: ['阿里云', 'aliyun', 'ecs', '轻量'],
+    managementUrl: 'https://usercenter2.aliyun.com/renew/instance',
+    plans: [
+      { id: 'ecs_yearly', label: { zh: '轻量/ECS 特惠年付 · ¥99/年', en: 'ECS Annual · ¥99/yr' }, itemName: { zh: '阿里云服务器', en: 'Alibaba Cloud ECS' }, amount: 99, currency: 'CNY', cycle: 'yearly' },
+      { id: 'domain_com', label: { zh: '域名年度续费 · ¥85/年', en: 'Domain Renewal · ¥85/yr' }, itemName: { zh: '阿里云域名续费', en: 'Alibaba Cloud Domain' }, amount: 85, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'tencent_cloud',
+    name: { zh: '腾讯云', en: 'Tencent Cloud' },
+    subtitle: { zh: '轻量应用服务器 / COS / 域名', en: 'Lighthouse / COS / Domains' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#00A4FF',
+    keywords: ['腾讯云', 'tencent cloud', 'lighthouse', 'dnspod'],
+    managementUrl: 'https://console.cloud.tencent.com/expense/renewal',
+    plans: [
+      { id: 'lh_yearly', label: { zh: '轻量服务器年付 · ¥112/年', en: 'Lighthouse Annual · ¥112/yr' }, itemName: { zh: '腾讯云轻量服务器', en: 'Tencent Lighthouse' }, amount: 112, currency: 'CNY', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'cloudflare',
+    name: { zh: 'Cloudflare', en: 'Cloudflare' },
+    subtitle: { zh: '无溢价域名续费 / Pro 计划', en: 'Registrar / Pro Plan' },
+    group: 'infra_telecom',
+    category: 'network',
+    color: '#F38020',
+    keywords: ['cloudflare', 'cf', '域名', 'cdn'],
+    managementUrl: 'https://dash.cloudflare.com/',
+    plans: [
+      { id: 'domain_com', label: { zh: '.com 成本价续费 · $10.44/年', en: '.com Renewal · $10.44/yr' }, itemName: { zh: 'Cloudflare 域名续费', en: 'Cloudflare Domain' }, amount: 10.44, currency: 'USD', cycle: 'yearly' },
+      { id: 'pro', label: { zh: 'Pro 站点计划 · $25/月', en: 'Pro Plan · $25/mo' }, itemName: { zh: 'Cloudflare Pro', en: 'Cloudflare Pro' }, amount: 25, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'bandwagon',
+    name: { zh: '搬瓦工 (BandwagonHost)', en: 'BandwagonHost' },
+    subtitle: { zh: 'CN2 GIA 经典年付 VPS', en: 'CN2 GIA Annual VPS' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#2563EB',
+    keywords: ['搬瓦工', 'bwh', 'bandwagon', 'cn2', 'vps'],
+    managementUrl: 'https://bwh81.net/clientarea.php?action=products',
+    plans: [
+      { id: 'cn2_yearly', label: { zh: '限量版年付 · $49.99/年', en: 'Special Annual · $49.99/yr' }, itemName: { zh: '搬瓦工 CN2 VPS', en: 'BandwagonHost VPS' }, amount: 49.99, currency: 'USD', cycle: 'yearly' },
+      { id: 'gia_quarterly', label: { zh: 'CN2 GIA-E 季付 · $49.99/季', en: 'CN2 GIA-E · $49.99/qtr' }, itemName: { zh: '搬瓦工 CN2 GIA-E', en: 'BandwagonHost GIA-E' }, amount: 49.99, currency: 'USD', cycle: 'quarterly' },
+    ],
+  },
+  {
+    key: 'racknerd',
+    name: { zh: 'RackNerd', en: 'RackNerd' },
+    subtitle: { zh: '黑五特惠传家宝年付 VPS', en: 'Promo Annual KVM VPS' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#DC2626',
+    keywords: ['racknerd', 'rn', '黑五', 'vps'],
+    managementUrl: 'https://my.racknerd.com/clientarea.php?action=services',
+    plans: [
+      { id: 'bf_1g', label: { zh: '特惠 1GB 年付 · $10.98/年', en: '1GB Promo · $10.98/yr' }, itemName: { zh: 'RackNerd 洛杉矶 VPS', en: 'RackNerd KVM VPS' }, amount: 10.98, currency: 'USD', cycle: 'yearly' },
+      { id: 'bf_2g', label: { zh: '特惠 2GB 年付 · $17.98/年', en: '2GB Promo · $17.98/yr' }, itemName: { zh: 'RackNerd 2GB VPS', en: 'RackNerd 2GB VPS' }, amount: 17.98, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'aws',
+    name: { zh: 'AWS (Lightsail)', en: 'AWS Lightsail' },
+    subtitle: { zh: 'Lightsail 主机与云服务', en: 'Lightsail & Cloud Services' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#FF9900',
+    keywords: ['aws', 'amazon', 'lightsail', '亚马逊云'],
+    managementUrl: 'https://lightsail.aws.amazon.com/',
+    plans: [
+      { id: 'ls_5', label: { zh: 'Lightsail · $5/月', en: 'Lightsail · $5/mo' }, itemName: { zh: 'AWS Lightsail', en: 'AWS Lightsail' }, amount: 5, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'hetzner',
+    name: { zh: 'Hetzner Cloud', en: 'Hetzner Cloud' },
+    subtitle: { zh: '欧洲/美西高性价比云服务器', en: 'Cloud VPS in EUR' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#D50C2D',
+    keywords: ['hetzner', 'hz', '德国vps'],
+    managementUrl: 'https://console.hetzner.cloud/',
+    plans: [
+      { id: 'cx22', label: { zh: 'CX22 云主机 · €4.51/月', en: 'CX22 · €4.51/mo' }, itemName: { zh: 'Hetzner Cloud VPS', en: 'Hetzner Cloud VPS' }, amount: 4.51, currency: 'EUR', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'vultr',
+    name: { zh: 'Vultr', en: 'Vultr' },
+    subtitle: { zh: '全球多机房按月云主机', en: 'Global Cloud Compute' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#007BFC',
+    keywords: ['vultr', 'vps'],
+    managementUrl: 'https://my.vultr.com/',
+    plans: [
+      { id: 'vc2', label: { zh: 'Cloud Compute · $6/月', en: 'Compute · $6/mo' }, itemName: { zh: 'Vultr VPS', en: 'Vultr VPS' }, amount: 6, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'digitalocean',
+    name: { zh: 'DigitalOcean', en: 'DigitalOcean' },
+    subtitle: { zh: 'Droplet 云主机 · $6/月起', en: 'Droplets · from $6/mo' },
+    group: 'infra_telecom',
+    category: 'cloud',
+    color: '#0080FF',
+    keywords: ['digitalocean', 'do', 'droplet'],
+    managementUrl: 'https://cloud.digitalocean.com/',
+    plans: [
+      { id: 'droplet', label: { zh: 'Basic Droplet · $6/月', en: 'Droplet · $6/mo' }, itemName: { zh: 'DigitalOcean Droplet', en: 'DigitalOcean Droplet' }, amount: 6, currency: 'USD', cycle: 'monthly' },
+    ],
+  },
+  {
+    key: 'namecheap',
+    name: { zh: 'Namecheap', en: 'Namecheap' },
+    subtitle: { zh: '国际域名注册与续费', en: 'Domain Registration' },
+    group: 'infra_telecom',
+    category: 'network',
+    color: '#DE3723',
+    keywords: ['namecheap', 'nc', '域名'],
+    managementUrl: 'https://ap.www.namecheap.com/domains/list/',
+    plans: [
+      { id: 'com', label: { zh: '.com 域名续费 · $16.98/年', en: '.com Renewal · $16.98/yr' }, itemName: { zh: 'Namecheap 域名', en: 'Namecheap Domain' }, amount: 16.98, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'spaceship',
+    name: { zh: 'Spaceship', en: 'Spaceship' },
+    subtitle: { zh: '低价国际域名续费平台', en: 'Low-cost Domain Registrar' },
+    group: 'infra_telecom',
+    category: 'network',
+    color: '#4F46E5',
+    keywords: ['spaceship', '飞船', '域名'],
+    managementUrl: 'https://www.spaceship.com/application/domain-list-application/',
+    plans: [
+      { id: 'com', label: { zh: '.com 域名续费 · $9.98/年', en: '.com Renewal · $9.98/yr' }, itemName: { zh: 'Spaceship 域名', en: 'Spaceship Domain' }, amount: 9.98, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'porkbun',
+    name: { zh: 'Porkbun', en: 'Porkbun' },
+    subtitle: { zh: '透明低价域名商', en: 'Domain Registrar' },
+    group: 'infra_telecom',
+    category: 'network',
+    color: '#EF7878',
+    keywords: ['porkbun', '猪肉包', '域名'],
+    managementUrl: 'https://porkbun.com/account/domainsSpeedy',
+    plans: [
+      { id: 'com', label: { zh: '.com 域名续费 · $10.73/年', en: '.com Renewal · $10.73/yr' }, itemName: { zh: 'Porkbun 域名', en: 'Porkbun Domain' }, amount: 10.73, currency: 'USD', cycle: 'yearly' },
+    ],
+  },
+  {
+    key: 'giffgaff',
+    name: { zh: '英国 giffgaff 保号卡', en: 'giffgaff UK SIM' },
+    subtitle: { zh: '0 月租 · 每 180 天发短信保号', en: '£0/mo · Keep-alive every 180d' },
+    group: 'infra_telecom',
+    category: 'telecom',
+    color: '#EC4899',
+    keywords: ['giffgaff', 'gg', '英国卡', '保号', 'esim', 'sim'],
+    managementUrl: 'https://www.giffgaff.com/dashboard',
+    plans: [
+      { id: 'keepalive', label: { zh: '180 天发短信保号 · £0.30', en: '180-day SMS Keep-alive · £0.30' }, itemName: { zh: '英国 giffgaff 保号', en: 'giffgaff Keep-alive' }, amount: 0.3, currency: 'GBP', cycle: 'custom', intervalDays: 180 },
+    ],
+  },
+];
+
+const presetByKey = new Map(subscriptionPresets.map(preset => [preset.key, preset]));
+
+const fallbackMatchers: { key: string; patterns: RegExp[] }[] = [
+  { key: 'bilibili', patterns: [/bilibili/i, /哔哩/, /\bb\s*站/i] },
+  { key: 'qq_music', patterns: [/qq\s*music/i, /qq\s*音乐/i, /豪华绿钻/] },
+  { key: 'netease_music', patterns: [/netease/i, /网易云/, /黑胶/] },
+  { key: 'chatgpt', patterns: [/chatgpt/i, /\bopenai\b/i] },
+  { key: 'claude', patterns: [/\bclaude\b/i, /\banthropic\b/i] },
+  { key: 'cursor', patterns: [/\bcursor\b/i] },
+  { key: 'github_copilot', patterns: [/copilot/i, /\bgithub\b/i] },
+  { key: 'gemini', patterns: [/\bgemini\b/i, /google\s*one/i] },
+  { key: 'deepseek', patterns: [/deepseek/i] },
+  { key: 'icloud', patterns: [/icloud/i] },
+  { key: 'apple_music', patterns: [/apple\s*music/i] },
+  { key: 'apple_one', patterns: [/apple\s*one/i, /apple\s*tv/i] },
+  { key: 'spotify', patterns: [/spotify/i] },
+  { key: 'youtube', patterns: [/youtube/i] },
+  { key: 'netflix', patterns: [/netflix/i, /奈飞/, /网飞/] },
+  { key: 'disney_plus', patterns: [/disney/i, /迪士尼/] },
+  { key: 'baidu_pan', patterns: [/百度网盘/, /baidu\s*netdisk/i] },
+  { key: 'alipan', patterns: [/阿里云盘/, /alipan/i] },
+  { key: 'quark', patterns: [/夸克/, /quark/i] },
+  { key: 'wps', patterns: [/\bwps\b/i] },
+  { key: 'weread', patterns: [/微信读书/, /weread/i] },
+  { key: 'vip_88', patterns: [/88\s*vip/i] },
+  { key: 'jd_plus', patterns: [/京东\s*plus/i, /\bjd\s*plus\b/i] },
+  { key: 'meituan', patterns: [/美团/, /meituan/i] },
+  { key: 'sams_club', patterns: [/山姆/, /sam'?s\s*club/i] },
+  { key: 'iqiyi', patterns: [/爱奇艺/, /iqiyi/i] },
+  { key: 'tencent_video', patterns: [/腾讯视频/, /tencent\s*video/i] },
+  { key: 'youku', patterns: [/优酷/, /youku/i] },
+  { key: 'mango_tv', patterns: [/芒果\s*tv/i, /mango\s*tv/i] },
+  { key: 'microsoft_365', patterns: [/microsoft\s*365/i, /office\s*365/i] },
+  { key: 'notion', patterns: [/\bnotion\b/i] },
+  { key: 'figma', patterns: [/\bfigma\b/i] },
+  { key: 'jetbrains', patterns: [/jetbrains/i] },
+  { key: 'onepassword', patterns: [/1password/i] },
+  { key: 'bitwarden', patterns: [/bitwarden/i] },
+  { key: 'cloudflare', patterns: [/cloudflare/i] },
+  { key: 'aliyun', patterns: [/阿里云/, /alibaba\s*cloud/i] },
+  { key: 'tencent_cloud', patterns: [/腾讯云/, /tencent\s*cloud/i] },
+  { key: 'bandwagon', patterns: [/搬瓦工/, /bandwagon/i] },
+  { key: 'racknerd', patterns: [/racknerd/i] },
+  { key: 'aws', patterns: [/\baws\b/i, /lightsail/i] },
+  { key: 'hetzner', patterns: [/hetzner/i] },
+  { key: 'vultr', patterns: [/\bvultr\b/i] },
+  { key: 'digitalocean', patterns: [/digitalocean/i] },
+  { key: 'namecheap', patterns: [/namecheap/i] },
+  { key: 'spaceship', patterns: [/spaceship/i] },
+  { key: 'porkbun', patterns: [/porkbun/i] },
+  { key: 'ps_plus', patterns: [/playstation/i, /\bps\s*plus\b/i] },
+  { key: 'xbox', patterns: [/\bxbox\b/i, /game\s*pass/i] },
+  { key: 'nintendo', patterns: [/nintendo/i, /switch\s*online/i] },
+  { key: 'telegram', patterns: [/telegram/i] },
+  { key: 'x_premium', patterns: [/\bx\s*premium\b/i, /twitter/i] },
+  { key: 'discord', patterns: [/discord/i] },
+  { key: 'giffgaff', patterns: [/giffgaff/i] },
+];
+
+export function findPreset(key?: string): SubscriptionPreset | undefined {
+  return key ? presetByKey.get(key) : undefined;
+}
+
+export function resolvePreset(value: Pick<Subscription, 'presetKey' | 'name'>): SubscriptionPreset | undefined {
+  if (value.presetKey) {
+    const direct = presetByKey.get(value.presetKey);
+    if (direct) return direct;
+  }
+  for (const matcher of fallbackMatchers) {
+    if (matcher.patterns.some(pattern => pattern.test(value.name))) {
+      return presetByKey.get(matcher.key);
+    }
+  }
+  return undefined;
+}
+
+export function filterPresets(query: string, group: PresetGroup): SubscriptionPreset[] {
+  const normalized = query.trim().toLowerCase();
+  return subscriptionPresets.filter((preset) => {
+    if (!normalized) {
+      return group === 'popular' ? Boolean(preset.popular) : preset.group === group;
+    }
+    const haystack = [preset.key, preset.name.zh, preset.name.en, preset.subtitle.zh, preset.subtitle.en, ...preset.keywords].join(' ').toLowerCase();
+    return haystack.includes(normalized);
+  });
+}

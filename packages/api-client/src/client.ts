@@ -37,6 +37,9 @@ export async function request<T>(path: string, schema: z.ZodType<T>, init?: Requ
     throw new ApiError(response.status, 'invalid_response', '服务返回了无法识别的数据');
   }
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/') && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('irm:unauthorized'));
+    }
     const result = errorSchema.safeParse(body);
     throw new ApiError(response.status, result.success ? result.data.error.code : 'request_failed', result.success ? result.data.error.message : '请求失败');
   }

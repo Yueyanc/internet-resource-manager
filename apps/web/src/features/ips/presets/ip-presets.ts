@@ -1,0 +1,592 @@
+import type { IpInput, IpNode } from '@irm/api-client';
+
+export type IpPresetGroup = 'popular' | 'residential_isp' | 'global_vps' | 'cn_transit' | 'overlay_home';
+
+export const ipPresetGroups: { key: IpPresetGroup; zh: string; en: string }[] = [
+  { key: 'popular', zh: '热门常用', en: 'Popular' },
+  { key: 'residential_isp', zh: '住宅与家宽', en: 'Residential ISP' },
+  { key: 'global_vps', zh: '海外云与 VPS', en: 'Global Cloud & VPS' },
+  { key: 'cn_transit', zh: '国内入口与专线', en: 'CN Entry & Transit' },
+  { key: 'overlay_home', zh: '组网与家庭公网', en: 'Overlay & Home' },
+];
+
+export type IpPresetVariant = {
+  id: string;
+  label: { zh: string; en: string };
+  nodeLabel: { zh: string; en: string };
+  networkScope: IpInput['networkScope'];
+  region: string;
+  city: string;
+  asnType?: IpInput['asnType'];
+  originType?: IpInput['originType'];
+  tags?: string[];
+};
+
+export type IpPreset = {
+  key: string;
+  provider: { zh: string; en: string };
+  subtitle: { zh: string; en: string };
+  aliases: string[];
+  groups: IpPresetGroup[];
+  category: IpInput['category'];
+  networkScope: IpInput['networkScope'];
+  region: string;
+  city?: string;
+  asn?: number;
+  asnOrg?: string;
+  asnType: IpInput['asnType'];
+  originType: IpInput['originType'];
+  iconKey: string;
+  color: string;
+  darkInvert?: boolean;
+  defaultRole?: IpInput['role'];
+  recommendedReview?: IpInput['reviewCycle'];
+  defaultTags?: string[];
+  consoleUrl?: string;
+  variants?: IpPresetVariant[];
+  tip?: { zh: string; en: string };
+};
+
+export const ipRegionPresets: { code: string; zh: string; en: string }[] = [
+  { code: 'US', zh: '美国 (US)', en: 'United States (US)' },
+  { code: 'HK', zh: '中国香港 (HK)', en: 'Hong Kong (HK)' },
+  { code: 'JP', zh: '日本 (JP)', en: 'Japan (JP)' },
+  { code: 'SG', zh: '新加坡 (SG)', en: 'Singapore (SG)' },
+  { code: 'TW', zh: '中国台湾 (TW)', en: 'Taiwan (TW)' },
+  { code: 'CN', zh: '中国大陆 (CN)', en: 'Mainland China (CN)' },
+  { code: 'KR', zh: '韩国 (KR)', en: 'South Korea (KR)' },
+  { code: 'GB', zh: '英国 (GB)', en: 'United Kingdom (GB)' },
+  { code: 'DE', zh: '德国 (DE)', en: 'Germany (DE)' },
+  { code: 'NL', zh: '荷兰 (NL)', en: 'Netherlands (NL)' },
+  { code: 'CA', zh: '加拿大 (CA)', en: 'Canada (CA)' },
+  { code: 'AU', zh: '澳大利亚 (AU)', en: 'Australia (AU)' },
+  { code: 'LAN', zh: '内网 / 组网 (LAN)', en: 'Private / Overlay (LAN)' },
+  { code: 'GLOBAL', zh: '全球任播 (GLOBAL)', en: 'Global Anycast (GLOBAL)' },
+];
+
+export const ipTagPresets: { zh: string; en: string }[] = [
+  { zh: '双ISP', en: 'Dual-ISP' },
+  { zh: '住宅原生', en: 'Residential Native' },
+  { zh: 'CN2 GIA', en: 'CN2 GIA' },
+  { zh: 'CMIN2', en: 'CMIN2' },
+  { zh: '9929', en: 'CUII 9929' },
+  { zh: '软银 SoftBank', en: 'SoftBank' },
+  { zh: '动态DDNS', en: 'Dynamic DDNS' },
+  { zh: '独享固定', en: 'Dedicated Static' },
+];
+
+export const ipPresets: IpPreset[] = [
+  {
+    key: 'att_fiber',
+    provider: { zh: 'AT&T 住宅宽带', en: 'AT&T Residential' },
+    subtitle: { zh: '美区双ISP住宅原生 · AI/支付零风控', en: 'US native residential ISP exit' },
+    aliases: ['att', 'at&t', '美国宽带', '美国家宽', 'us residential', 'as7018', 'mgjk'],
+    groups: ['popular', 'residential_isp'],
+    category: 'residential_isp',
+    networkScope: 'overseas_exit',
+    region: 'US',
+    city: 'Los Angeles',
+    asn: 7018,
+    asnOrg: 'AT&T Enterprises, LLC',
+    asnType: 'residential',
+    originType: 'native',
+    iconKey: 'att',
+    color: '#00A8E0',
+    defaultRole: 'dedicated',
+    recommendedReview: 'quarterly',
+    defaultTags: ['双ISP', '住宅原生'],
+    tip: {
+      zh: '美区住宅双ISP节点适合固定绑定 ChatGPT、PayPal、Apple 美区等高风控账号，避免多人混用。',
+      en: 'US residential dual-ISP exits are ideal for pinning high-sensitivity AI and payment accounts.',
+    },
+    variants: [
+      { id: 'lax', label: { zh: '美西洛杉矶', en: 'US West · LA' }, nodeLabel: { zh: '美西家宽主力', en: 'US West Residential' }, networkScope: 'overseas_exit', region: 'US', city: 'Los Angeles', tags: ['双ISP', '住宅原生'] },
+      { id: 'dfw', label: { zh: '美南达拉斯', en: 'US South · Dallas' }, nodeLabel: { zh: '美南静态家宽', en: 'Dallas Static ISP' }, networkScope: 'overseas_exit', region: 'US', city: 'Dallas', tags: ['双ISP', '独享固定'] },
+      { id: 'nyc', label: { zh: '美东纽约', en: 'US East · NYC' }, nodeLabel: { zh: '美东家宽出口', en: 'NYC Residential' }, networkScope: 'overseas_exit', region: 'US', city: 'New York', tags: ['住宅原生'] },
+    ],
+  },
+  {
+    key: 'verizon_fios',
+    provider: { zh: 'Verizon Fios 家宽', en: 'Verizon Fios' },
+    subtitle: { zh: '美东光纤原生住宅出口', en: 'US East native fiber ISP' },
+    aliases: ['verizon', 'fios', 'as701', '美东家宽'],
+    groups: ['residential_isp'],
+    category: 'residential_isp',
+    networkScope: 'overseas_exit',
+    region: 'US',
+    city: 'Ashburn',
+    asn: 701,
+    asnOrg: 'Verizon Business',
+    asnType: 'residential',
+    originType: 'native',
+    iconKey: 'verizon',
+    color: '#CD040B',
+    defaultRole: 'dedicated',
+    recommendedReview: 'quarterly',
+    defaultTags: ['住宅原生'],
+  },
+  {
+    key: 'hinet_tw',
+    provider: { zh: '中华电信 HiNet', en: 'Chunghwa HiNet' },
+    subtitle: { zh: '台湾原生动态/静态家宽 · 动画疯全解锁', en: 'Taiwan native ISP broadband' },
+    aliases: ['hinet', 'cht', '中华电信', '台湾家宽', 'as3462', 'zhdx'],
+    groups: ['popular', 'residential_isp'],
+    category: 'residential_isp',
+    networkScope: 'overseas_exit',
+    region: 'TW',
+    city: 'Taipei',
+    asn: 3462,
+    asnOrg: 'Data Communication Business Group',
+    asnType: 'isp',
+    originType: 'native',
+    iconKey: 'hinet',
+    color: '#0284C7',
+    defaultRole: 'primary',
+    recommendedReview: 'quarterly',
+    defaultTags: ['住宅原生', '动态DDNS'],
+  },
+  {
+    key: 'ntt_jp',
+    provider: { zh: '日本 NTT / OCN', en: 'NTT / OCN Japan' },
+    subtitle: { zh: '日本运营商原生宽带出口', en: 'Japan native carrier ISP' },
+    aliases: ['ntt', 'ocn', '日本家宽', '东京原生', 'as4713', 'as2914'],
+    groups: ['residential_isp'],
+    category: 'residential_isp',
+    networkScope: 'overseas_exit',
+    region: 'JP',
+    city: 'Tokyo',
+    asn: 4713,
+    asnOrg: 'NTT Communications Corporation',
+    asnType: 'isp',
+    originType: 'native',
+    iconKey: 'ntt',
+    color: '#005BAC',
+    defaultRole: 'dedicated',
+    recommendedReview: 'quarterly',
+    defaultTags: ['住宅原生'],
+  },
+  {
+    key: 'dmit',
+    provider: { zh: 'DMIT', en: 'DMIT' },
+    subtitle: { zh: 'CN2 GIA / CMIN2 精品直连云主机', en: 'Premium CN2 GIA / CMIN2 cloud VPS' },
+    aliases: ['dmit', 'lax pro', 'tyo pro', 'hkg pro', 'cn2 gia'],
+    groups: ['popular', 'global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'US',
+    city: 'Los Angeles',
+    asn: 54574,
+    asnOrg: 'DMIT Cloud Services',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'dmit',
+    color: '#0F172A',
+    defaultRole: 'primary',
+    recommendedReview: 'quarterly',
+    defaultTags: ['CN2 GIA'],
+    consoleUrl: 'https://www.dmit.io/clientarea.php',
+    variants: [
+      { id: 'lax_pro', label: { zh: '美西 LAX Pro (GIA)', en: 'LAX Pro (CN2 GIA)' }, nodeLabel: { zh: 'LAX Pro 主力', en: 'LAX Pro Primary' }, networkScope: 'overseas_exit', region: 'US', city: 'Los Angeles', tags: ['CN2 GIA'] },
+      { id: 'lax_eb', label: { zh: '美西 Eyeball (CMIN2)', en: 'LAX Eyeball (CMIN2)' }, nodeLabel: { zh: 'LAX EB 移动优化', en: 'LAX Eyeball' }, networkScope: 'overseas_exit', region: 'US', city: 'Los Angeles', tags: ['CMIN2'] },
+      { id: 'tyo_pro', label: { zh: '东京 TYO Pro', en: 'Tokyo Pro' }, nodeLabel: { zh: '东京精品主力', en: 'Tokyo Pro' }, networkScope: 'overseas_exit', region: 'JP', city: 'Tokyo', tags: ['CN2 GIA'] },
+      { id: 'hkg_pro', label: { zh: '香港 HKG Pro', en: 'Hong Kong Pro' }, nodeLabel: { zh: '香港低延迟', en: 'HKG Low Latency' }, networkScope: 'overseas_exit', region: 'HK', city: 'Hong Kong', tags: ['CN2 GIA'] },
+    ],
+  },
+  {
+    key: 'bandwagon',
+    provider: { zh: '搬瓦工 Bandwagon', en: 'BandwagonHost' },
+    subtitle: { zh: 'DC6 / DC9 GIA-E 与日本软银主力线路', en: 'DC6/DC9 CN2 GIA-E & SoftBank VPS' },
+    aliases: ['bandwagon', 'bwh', '搬瓦工', 'bwg', 'it7', 'dc6', 'dc9', 'the plan'],
+    groups: ['popular', 'global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'US',
+    city: 'Los Angeles',
+    asn: 25820,
+    asnOrg: 'IT7 Networks Inc',
+    asnType: 'hosting',
+    originType: 'broadcast',
+    iconKey: 'bandwagon',
+    color: '#2563EB',
+    defaultRole: 'primary',
+    recommendedReview: 'quarterly',
+    defaultTags: ['CN2 GIA'],
+    consoleUrl: 'https://bwh81.net/clientarea.php',
+    variants: [
+      { id: 'dc6', label: { zh: '洛杉矶 DC6 GIA-E', en: 'LA DC6 GIA-E' }, nodeLabel: { zh: 'DC6 主力出口', en: 'DC6 Primary' }, networkScope: 'overseas_exit', region: 'US', city: 'Los Angeles', tags: ['CN2 GIA'] },
+      { id: 'jpos', label: { zh: '大阪软银 JPOS', en: 'Osaka SoftBank' }, nodeLabel: { zh: '大阪软银', en: 'Osaka SoftBank' }, networkScope: 'overseas_exit', region: 'JP', city: 'Osaka', tags: ['软银 SoftBank'] },
+      { id: 'hk85', label: { zh: '香港 HK85 CMI', en: 'Hong Kong CMI' }, nodeLabel: { zh: '香港直连', en: 'HK Direct' }, networkScope: 'overseas_exit', region: 'HK', city: 'Hong Kong' },
+    ],
+  },
+  {
+    key: 'aws',
+    provider: { zh: 'AWS Lightsail / EC2', en: 'AWS Lightsail / EC2' },
+    subtitle: { zh: '东京 / 新加坡 / 美西弹性公网与云节点', en: 'Global Lightsail & Elastic IP' },
+    aliases: ['aws', 'amazon', 'lightsail', 'ec2', 'eip', '亚马逊云', 'as16509'],
+    groups: ['popular', 'global_vps'],
+    category: 'floating_eip',
+    networkScope: 'overseas_exit',
+    region: 'SG',
+    city: 'Singapore',
+    asn: 16509,
+    asnOrg: 'Amazon.com, Inc.',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'aws',
+    color: '#FF9900',
+    defaultRole: 'service',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://lightsail.aws.amazon.com/',
+    variants: [
+      { id: 'sg', label: { zh: '新加坡亚太', en: 'Singapore' }, nodeLabel: { zh: '新加坡 Lightsail', en: 'SG Lightsail' }, networkScope: 'overseas_exit', region: 'SG', city: 'Singapore' },
+      { id: 'jp', label: { zh: '东京 ap-northeast-1', en: 'Tokyo' }, nodeLabel: { zh: '东京弹性 IP', en: 'Tokyo EIP' }, networkScope: 'overseas_exit', region: 'JP', city: 'Tokyo' },
+      { id: 'us', label: { zh: '美西俄勒冈', en: 'US West Oregon' }, nodeLabel: { zh: '美西 EC2', en: 'US West EC2' }, networkScope: 'overseas_exit', region: 'US', city: 'Boardman' },
+    ],
+  },
+  {
+    key: 'oracle_cloud',
+    provider: { zh: 'Oracle Cloud 甲骨文云', en: 'Oracle Cloud' },
+    subtitle: { zh: '春川 / 东京 / 圣何塞 ARM 永久免费与浮动 IP', en: 'OCI Compute & Reserved Public IP' },
+    aliases: ['oracle', 'oci', '甲骨文', '春川', 'as31898', 'jgw'],
+    groups: ['popular', 'global_vps'],
+    category: 'floating_eip',
+    networkScope: 'overseas_exit',
+    region: 'KR',
+    city: 'Chuncheon',
+    asn: 31898,
+    asnOrg: 'Oracle Corporation',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'oracle',
+    color: '#C74634',
+    defaultRole: 'standby',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://cloud.oracle.com/',
+  },
+  {
+    key: 'google_cloud',
+    provider: { zh: 'Google Cloud (GCP)', en: 'Google Cloud' },
+    subtitle: { zh: '台湾彰化 / 香港高级网络静态 IP', en: 'GCP Premium Tier static external IP' },
+    aliases: ['gcp', 'google cloud', '谷歌云', '彰化', 'as396982', 'as15169'],
+    groups: ['global_vps'],
+    category: 'floating_eip',
+    networkScope: 'overseas_exit',
+    region: 'TW',
+    city: 'Changhua',
+    asn: 396982,
+    asnOrg: 'Google LLC',
+    asnType: 'hosting',
+    originType: 'broadcast',
+    iconKey: 'google',
+    color: '#4285F4',
+    defaultRole: 'service',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://console.cloud.google.com/networking/addresses/list',
+  },
+  {
+    key: 'hetzner',
+    provider: { zh: 'Hetzner Cloud', en: 'Hetzner' },
+    subtitle: { zh: '德国 / 芬兰 / 美东高性价比建站与服务节点', en: 'European & US cloud servers & Floating IP' },
+    aliases: ['hetzner', 'hz', '赫兹纳', '德国vps', 'as24940'],
+    groups: ['global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'DE',
+    city: 'Nuremberg',
+    asn: 24940,
+    asnOrg: 'Hetzner Online GmbH',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'hetzner',
+    color: '#D50C2D',
+    defaultRole: 'service',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://console.hetzner.cloud/',
+  },
+  {
+    key: 'vultr',
+    provider: { zh: 'Vultr', en: 'Vultr' },
+    subtitle: { zh: '全球多机房按时计费高频云节点', en: 'Global high-frequency cloud compute' },
+    aliases: ['vultr', 'choopa', 'as20473'],
+    groups: ['global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'JP',
+    city: 'Tokyo',
+    asn: 20473,
+    asnOrg: 'The Constant Company, LLC',
+    asnType: 'hosting',
+    originType: 'broadcast',
+    iconKey: 'vultr',
+    color: '#007BFC',
+    defaultRole: 'standby',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://my.vultr.com/',
+  },
+  {
+    key: 'digitalocean',
+    provider: { zh: 'DigitalOcean', en: 'DigitalOcean' },
+    subtitle: { zh: '新加坡 / 旧金山 Droplet 与 Reserved IP', en: 'Droplets & Reserved IPs' },
+    aliases: ['digitalocean', 'do', 'droplet', 'as14061'],
+    groups: ['global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'SG',
+    city: 'Singapore',
+    asn: 14061,
+    asnOrg: 'DigitalOcean, LLC',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'digitalocean',
+    color: '#0080FF',
+    defaultRole: 'service',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://cloud.digitalocean.com/',
+  },
+  {
+    key: 'linode',
+    provider: { zh: 'Akamai / Linode', en: 'Akamai / Linode' },
+    subtitle: { zh: '日本 / 新加坡 / 北美云主机 IP', en: 'Akamai Connected Cloud instances' },
+    aliases: ['linode', 'akamai', 'as63949'],
+    groups: ['global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'JP',
+    city: 'Tokyo',
+    asn: 63949,
+    asnOrg: 'Akamai Connected Cloud',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'linode',
+    color: '#02B159',
+    defaultRole: 'service',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://cloud.linode.com/',
+  },
+  {
+    key: 'racknerd',
+    provider: { zh: 'RackNerd', en: 'RackNerd' },
+    subtitle: { zh: '北美特惠年付备用 VPS 出口', en: 'Budget North America standby VPS' },
+    aliases: ['racknerd', 'rn', 'colocrossing', 'as36352'],
+    groups: ['global_vps'],
+    category: 'cloud_vps',
+    networkScope: 'overseas_exit',
+    region: 'US',
+    city: 'San Jose',
+    asn: 36352,
+    asnOrg: 'ColoCrossing',
+    asnType: 'hosting',
+    originType: 'broadcast',
+    iconKey: 'racknerd',
+    color: '#DC2626',
+    defaultRole: 'standby',
+    recommendedReview: 'yearly',
+    consoleUrl: 'https://my.racknerd.com/clientarea.php',
+  },
+  {
+    key: 'cloudflare',
+    provider: { zh: 'Cloudflare Anycast / WARP', en: 'Cloudflare' },
+    subtitle: { zh: 'Anycast 边缘代理或 Zero Trust 出口 IP', en: 'Anycast edge & Zero Trust egress IP' },
+    aliases: ['cloudflare', 'cf', 'warp', 'anycast', 'as13335'],
+    groups: ['global_vps'],
+    category: 'floating_eip',
+    networkScope: 'overseas_exit',
+    region: 'GLOBAL',
+    city: 'Anycast',
+    asn: 13335,
+    asnOrg: 'Cloudflare, Inc.',
+    asnType: 'hosting',
+    originType: 'broadcast',
+    iconKey: 'cloudflare',
+    color: '#F38020',
+    defaultRole: 'standby',
+    recommendedReview: 'none',
+    consoleUrl: 'https://dash.cloudflare.com/',
+  },
+  {
+    key: 'aliyun_eip',
+    provider: { zh: '阿里云 BGP / 精品网', en: 'Alibaba Cloud' },
+    subtitle: { zh: '国内 BGP 中转入口 / 香港轻量与弹性公网 IP', en: 'CN BGP entry & HK精品 EIP' },
+    aliases: ['aliyun', 'alibaba', '阿里云', 'aly', '沪日', '深港', 'as45102', 'as37963'],
+    groups: ['popular', 'cn_transit'],
+    category: 'transit_relay',
+    networkScope: 'domestic_entry',
+    region: 'CN',
+    city: 'Shanghai',
+    asn: 37963,
+    asnOrg: 'Hangzhou Alibaba Advertising Co.,Ltd.',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'aliyun',
+    color: '#FF6A00',
+    defaultRole: 'primary',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://ecs.console.aliyun.com/',
+    variants: [
+      { id: 'cn_sh', label: { zh: '上海 BGP 入口', en: 'Shanghai BGP Entry' }, nodeLabel: { zh: '上海中转入口', en: 'SH Relay Entry' }, networkScope: 'domestic_entry', region: 'CN', city: 'Shanghai' },
+      { id: 'cn_sz', label: { zh: '深圳 BGP 入口', en: 'Shenzhen BGP Entry' }, nodeLabel: { zh: '深港专线入口', en: 'SZ Relay Entry' }, networkScope: 'domestic_entry', region: 'CN', city: 'Shenzhen' },
+      { id: 'hk', label: { zh: '香港轻量 / 精品 EIP', en: 'Hong Kong EIP' }, nodeLabel: { zh: '阿里云香港出口', en: 'AliCloud HK Exit' }, networkScope: 'overseas_exit', region: 'HK', city: 'Hong Kong' },
+    ],
+  },
+  {
+    key: 'tencent_cloud',
+    provider: { zh: '腾讯云轻量 / BGP', en: 'Tencent Cloud' },
+    subtitle: { zh: '广州 / 上海国内建站与前置中转入口', en: 'CN Lighthouse server & transit entry' },
+    aliases: ['tencent', 'qcloud', '腾讯云', 'txy', '轻量', 'as45090', 'as132203'],
+    groups: ['popular', 'cn_transit'],
+    category: 'transit_relay',
+    networkScope: 'domestic_entry',
+    region: 'CN',
+    city: 'Guangzhou',
+    asn: 45090,
+    asnOrg: ' Shenzhen Tencent Computer Systems',
+    asnType: 'hosting',
+    originType: 'native',
+    iconKey: 'tencent_cloud',
+    color: '#0052D9',
+    defaultRole: 'service',
+    recommendedReview: 'halfyear',
+    consoleUrl: 'https://console.cloud.tencent.com/lighthouse',
+  },
+  {
+    key: 'china_telecom',
+    provider: { zh: '中国电信宽带 / 专线', en: 'China Telecom' },
+    subtitle: { zh: '家庭动态公网 IPv4/IPv6 或政企固定公网', en: 'Home dynamic public IP or enterprise line' },
+    aliases: ['telecom', 'chinanet', '中国电信', '电信公网', 'ddns', 'as4134', 'as4809', 'zgdx'],
+    groups: ['cn_transit', 'overlay_home'],
+    category: 'home_ddns',
+    networkScope: 'domestic_entry',
+    region: 'CN',
+    city: 'Shanghai',
+    asn: 4134,
+    asnOrg: 'Chinanet',
+    asnType: 'isp',
+    originType: 'native',
+    iconKey: 'china_telecom',
+    color: '#1D4ED8',
+    defaultRole: 'service',
+    recommendedReview: 'none',
+    defaultTags: ['动态DDNS'],
+  },
+  {
+    key: 'china_unicom',
+    provider: { zh: '中国联通宽带 / 9929', en: 'China Unicom' },
+    subtitle: { zh: '联通家庭公网 DDNS 或中转接入', en: 'Unicom broadband public IP / DDNS' },
+    aliases: ['unicom', '中国联通', '联通公网', '4837', '9929', 'as4837', 'zglt'],
+    groups: ['cn_transit', 'overlay_home'],
+    category: 'home_ddns',
+    networkScope: 'domestic_entry',
+    region: 'CN',
+    city: 'Beijing',
+    asn: 4837,
+    asnOrg: 'CHINA UNICOM China169 Backbone',
+    asnType: 'isp',
+    originType: 'native',
+    iconKey: 'china_unicom',
+    color: '#E60012',
+    defaultRole: 'service',
+    recommendedReview: 'none',
+    defaultTags: ['动态DDNS', '9929'],
+  },
+  {
+    key: 'tailscale',
+    provider: { zh: 'Tailscale 组网节点', en: 'Tailscale' },
+    subtitle: { zh: '100.64.0.0/10 异地组网与 Exit Node 网关', en: 'Tailnet CGNAT node & Exit Node' },
+    aliases: ['tailscale', 'ts', 'headscale', '100.64', '组网', '内网'],
+    groups: ['popular', 'overlay_home'],
+    category: 'overlay_subnet',
+    networkScope: 'overlay_private',
+    region: 'LAN',
+    city: 'Tailnet',
+    asnType: 'private',
+    originType: 'unknown',
+    iconKey: 'tailscale',
+    color: '#2563EB',
+    defaultRole: 'service',
+    recommendedReview: 'none',
+    consoleUrl: 'https://login.tailscale.com/admin/machines',
+    tip: {
+      zh: 'Tailscale / 内网地址仅作异地组网与旁路由台账记录，系统会自动跳过公网连通探测。',
+      en: 'Tailscale and private addresses are tracked for mesh inventory only; public probing is skipped automatically.',
+    },
+  },
+  {
+    key: 'wireguard_lan',
+    provider: { zh: 'WireGuard / 旁路由网段', en: 'WireGuard / LAN Gateway' },
+    subtitle: { zh: '家庭局域网网关、子网 CIDR 或点对点隧道', en: 'Home LAN subnet CIDR or WireGuard peer' },
+    aliases: ['wireguard', 'wg', 'lan', 'openwrt', 'surge', '旁路由', '192.168', '10.0'],
+    groups: ['overlay_home'],
+    category: 'overlay_subnet',
+    networkScope: 'overlay_private',
+    region: 'LAN',
+    city: 'Home LAN',
+    asnType: 'private',
+    originType: 'unknown',
+    iconKey: 'wireguard',
+    color: '#88171A',
+    defaultRole: 'service',
+    recommendedReview: 'none',
+  },
+  {
+    key: 'zerotier',
+    provider: { zh: 'ZeroTier 虚拟局域网', en: 'ZeroTier' },
+    subtitle: { zh: 'SD-WAN 虚拟二层网段与固定内网节点', en: 'Virtual L2 overlay network & peer IP' },
+    aliases: ['zerotier', 'zt', '虚拟局域网'],
+    groups: ['overlay_home'],
+    category: 'overlay_subnet',
+    networkScope: 'overlay_private',
+    region: 'LAN',
+    city: 'ZeroTier',
+    asnType: 'private',
+    originType: 'unknown',
+    iconKey: 'zerotier',
+    color: '#F59E0B',
+    defaultRole: 'service',
+    recommendedReview: 'none',
+    consoleUrl: 'https://my.zerotier.com/',
+  },
+];
+
+const byKey = new Map(ipPresets.map(item => [item.key, item]));
+
+export function findIpPreset(key?: string): IpPreset | undefined {
+  return key ? byKey.get(key) : undefined;
+}
+
+function normalizeToken(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+export function resolveIpPreset(value: Pick<IpNode, 'presetKey' | 'provider'>): IpPreset | undefined {
+  if (value.presetKey) {
+    const direct = byKey.get(value.presetKey);
+    if (direct) return direct;
+  }
+  const q = normalizeToken(value.provider);
+  if (!q) return undefined;
+  return ipPresets.find((preset) => {
+    const candidates = [preset.provider.zh, preset.provider.en, ...preset.aliases].map(normalizeToken);
+    return candidates.some(token => token === q || (token.length >= 3 && q.includes(token)));
+  });
+}
+
+export function filterIpPresets(query: string, group: IpPresetGroup): IpPreset[] {
+  const q = normalizeToken(query);
+  if (!q) {
+    return ipPresets.filter(item => item.groups.includes(group));
+  }
+  return ipPresets.filter((item) => {
+    const hay = [
+      item.provider.zh,
+      item.provider.en,
+      item.subtitle.zh,
+      item.subtitle.en,
+      item.region,
+      item.city ?? '',
+      ...item.aliases,
+    ]
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}

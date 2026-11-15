@@ -13,4 +13,5 @@ internal/webui/assets/*
 !internal/webui/assets/.gitkeep
 playwright-report/
 test-results/
+docs/design/*.png
 .DS_Store

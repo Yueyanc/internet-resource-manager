@@ -4,9 +4,275 @@
 
 package queries
 
+import (
+	"database/sql"
+)
+
+type Account struct {
+	ID                string         `json:"id"`
+	PresetKey         string         `json:"preset_key"`
+	Platform          string         `json:"platform"`
+	Label             string         `json:"label"`
+	Identifier        string         `json:"identifier"`
+	Uid               string         `json:"uid"`
+	Category          string         `json:"category"`
+	Ecosystem         string         `json:"ecosystem"`
+	Region            string         `json:"region"`
+	Role              string         `json:"role"`
+	Status            string         `json:"status"`
+	AuthMethod        string         `json:"auth_method"`
+	RecoveryAccountID sql.NullString `json:"recovery_account_id"`
+	RecoveryEmail     string         `json:"recovery_email"`
+	SsoAccountID      sql.NullString `json:"sso_account_id"`
+	PhoneHint         string         `json:"phone_hint"`
+	TwoFactor         string         `json:"two_factor"`
+	RecoveryCodes     string         `json:"recovery_codes"`
+	KycStatus         string         `json:"kyc_status"`
+	KycNote           string         `json:"kyc_note"`
+	KeepaliveCycle    string         `json:"keepalive_cycle"`
+	KeepaliveDays     int64          `json:"keepalive_days"`
+	NextCheckinDate   string         `json:"next_checkin_date"`
+	LastCheckedAt     string         `json:"last_checked_at"`
+	VaultReference    string         `json:"vault_reference"`
+	SecurityUrl       string         `json:"security_url"`
+	Notes             string         `json:"notes"`
+	Archived          int64          `json:"archived"`
+	CreatedAt         string         `json:"created_at"`
+	UpdatedAt         string         `json:"updated_at"`
+}
+
+type AccountSecret struct {
+	AccountID        string `json:"account_id"`
+	KeyVersion       int64  `json:"key_version"`
+	Ciphertext       string `json:"ciphertext"`
+	HasPassword      int64  `json:"has_password"`
+	HasTotp          int64  `json:"has_totp"`
+	HasRecoveryCodes int64  `json:"has_recovery_codes"`
+	UpdatedAt        string `json:"updated_at"`
+}
+
+type Administrator struct {
+	ID           int64  `json:"id"`
+	Username     string `json:"username"`
+	PasswordHash string `json:"password_hash"`
+}
+
+type AgentEnrollToken struct {
+	ID             string         `json:"id"`
+	TokenHash      string         `json:"token_hash"`
+	TargetServerID sql.NullString `json:"target_server_id"`
+	NameHint       string         `json:"name_hint"`
+	PresetKey      string         `json:"preset_key"`
+	DockerEnabled  int64          `json:"docker_enabled"`
+	ExpiresAt      string         `json:"expires_at"`
+	UsedAt         string         `json:"used_at"`
+	ResultServerID string         `json:"result_server_id"`
+	CreatedAt      string         `json:"created_at"`
+}
+
 type Domain struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Notes     string `json:"notes"`
+	ID                 string         `json:"id"`
+	Name               string         `json:"name"`
+	Notes              string         `json:"notes"`
+	CreatedAt          string         `json:"created_at"`
+	PresetKey          string         `json:"preset_key"`
+	Registrar          string         `json:"registrar"`
+	DnsProvider        string         `json:"dns_provider"`
+	Purpose            string         `json:"purpose"`
+	Status             string         `json:"status"`
+	ExpireDate         string         `json:"expire_date"`
+	AutoRenew          int64          `json:"auto_renew"`
+	WhoisPrivacy       int64          `json:"whois_privacy"`
+	IcpStatus          string         `json:"icp_status"`
+	IcpNumber          string         `json:"icp_number"`
+	ManagementUrl      string         `json:"management_url"`
+	SubscriptionID     sql.NullString `json:"subscription_id"`
+	RegistrarAccountID sql.NullString `json:"registrar_account_id"`
+	TagsJson           string         `json:"tags_json"`
+	Archived           int64          `json:"archived"`
+	UpdatedAt          string         `json:"updated_at"`
+}
+
+type Ip struct {
+	ID              string         `json:"id"`
+	PresetKey       string         `json:"preset_key"`
+	Address         string         `json:"address"`
+	Version         int64          `json:"version"`
+	PrefixLen       int64          `json:"prefix_len"`
+	NetworkScope    string         `json:"network_scope"`
+	Category        string         `json:"category"`
+	Provider        string         `json:"provider"`
+	Label           string         `json:"label"`
+	Region          string         `json:"region"`
+	City            string         `json:"city"`
+	Asn             int64          `json:"asn"`
+	AsnOrg          string         `json:"asn_org"`
+	PtrRecord       string         `json:"ptr_record"`
+	AsnType         string         `json:"asn_type"`
+	OriginType      string         `json:"origin_type"`
+	RiskLevel       string         `json:"risk_level"`
+	PurityNote      string         `json:"purity_note"`
+	UnlocksJson     string         `json:"unlocks_json"`
+	TagsJson        string         `json:"tags_json"`
+	ManualLocksJson string         `json:"manual_locks_json"`
+	LookupSource    string         `json:"lookup_source"`
+	LookupCheckedAt string         `json:"lookup_checked_at"`
+	LookupError     string         `json:"lookup_error"`
+	Role            string         `json:"role"`
+	Status          string         `json:"status"`
+	ReviewCycle     string         `json:"review_cycle"`
+	ReviewDays      int64          `json:"review_days"`
+	NextReviewDate  string         `json:"next_review_date"`
+	LastReviewedAt  string         `json:"last_reviewed_at"`
+	ProbeMode       string         `json:"probe_mode"`
+	ProbePort       int64          `json:"probe_port"`
+	ProbeStatus     string         `json:"probe_status"`
+	ProbeLatencyMs  int64          `json:"probe_latency_ms"`
+	ProbeCheckedAt  string         `json:"probe_checked_at"`
+	ProbeError      string         `json:"probe_error"`
+	SubscriptionID  sql.NullString `json:"subscription_id"`
+	ServerID        sql.NullString `json:"server_id"`
+	HostLabel       string         `json:"host_label"`
+	ConsoleUrl      string         `json:"console_url"`
+	Notes           string         `json:"notes"`
+	Archived        int64          `json:"archived"`
+	CreatedAt       string         `json:"created_at"`
+	UpdatedAt       string         `json:"updated_at"`
+}
+
+type IpAccount struct {
+	IpID      string `json:"ip_id"`
+	AccountID string `json:"account_id"`
 	CreatedAt string `json:"created_at"`
+}
+
+type IpDomain struct {
+	IpID      string `json:"ip_id"`
+	DomainID  string `json:"domain_id"`
+	CreatedAt string `json:"created_at"`
+}
+
+type Preference struct {
+	ID           int64  `json:"id"`
+	BaseCurrency string `json:"base_currency"`
+	RatesJson    string `json:"rates_json"`
+}
+
+type Server struct {
+	ID              string         `json:"id"`
+	PresetKey       string         `json:"preset_key"`
+	Name            string         `json:"name"`
+	Hostname        string         `json:"hostname"`
+	Provider        string         `json:"provider"`
+	Kind            string         `json:"kind"`
+	Status          string         `json:"status"`
+	Region          string         `json:"region"`
+	Datacenter      string         `json:"datacenter"`
+	Os              string         `json:"os"`
+	Arch            string         `json:"arch"`
+	CpuCores        int64          `json:"cpu_cores"`
+	MemoryMb        int64          `json:"memory_mb"`
+	DiskGb          int64          `json:"disk_gb"`
+	DiskType        string         `json:"disk_type"`
+	BandwidthMbps   int64          `json:"bandwidth_mbps"`
+	TrafficGb       int64          `json:"traffic_gb"`
+	TrafficRule     string         `json:"traffic_rule"`
+	TrafficResetDay int64          `json:"traffic_reset_day"`
+	Ipv4            string         `json:"ipv4"`
+	Ipv6            string         `json:"ipv6"`
+	PrivateIp       string         `json:"private_ip"`
+	PortNote        string         `json:"port_note"`
+	SshPort         int64          `json:"ssh_port"`
+	SshUser         string         `json:"ssh_user"`
+	ConsoleUrl      string         `json:"console_url"`
+	SubscriptionID  sql.NullString `json:"subscription_id"`
+	AccountID       sql.NullString `json:"account_id"`
+	ExpireDate      string         `json:"expire_date"`
+	TagsJson        string         `json:"tags_json"`
+	Notes           string         `json:"notes"`
+	Archived        int64          `json:"archived"`
+	CreatedAt       string         `json:"created_at"`
+	UpdatedAt       string         `json:"updated_at"`
+}
+
+type ServerAgent struct {
+	ServerID           string  `json:"server_id"`
+	Mode               string  `json:"mode"`
+	TokenHash          string  `json:"token_hash"`
+	AgentVersion       string  `json:"agent_version"`
+	IntervalSec        int64   `json:"interval_sec"`
+	EnrolledAt         string  `json:"enrolled_at"`
+	LastReportedAt     string  `json:"last_reported_at"`
+	CpuModel           string  `json:"cpu_model"`
+	KernelVersion      string  `json:"kernel_version"`
+	UptimeSeconds      int64   `json:"uptime_seconds"`
+	CpuPercent         float64 `json:"cpu_percent"`
+	Load1              float64 `json:"load1"`
+	Load5              float64 `json:"load5"`
+	Load15             float64 `json:"load15"`
+	MemoryUsedBytes    int64   `json:"memory_used_bytes"`
+	MemoryTotalBytes   int64   `json:"memory_total_bytes"`
+	SwapUsedBytes      int64   `json:"swap_used_bytes"`
+	SwapTotalBytes     int64   `json:"swap_total_bytes"`
+	RootDiskUsedBytes  int64   `json:"root_disk_used_bytes"`
+	RootDiskTotalBytes int64   `json:"root_disk_total_bytes"`
+	NetRxBps           int64   `json:"net_rx_bps"`
+	NetTxBps           int64   `json:"net_tx_bps"`
+	TrafficCycleKey    string  `json:"traffic_cycle_key"`
+	TrafficRxBytes     int64   `json:"traffic_rx_bytes"`
+	TrafficTxBytes     int64   `json:"traffic_tx_bytes"`
+	LastBootRxBytes    int64   `json:"last_boot_rx_bytes"`
+	LastBootTxBytes    int64   `json:"last_boot_tx_bytes"`
+	TcpConnections     int64   `json:"tcp_connections"`
+	DockerEnabled      int64   `json:"docker_enabled"`
+	DockerAvailable    int64   `json:"docker_available"`
+	DockerError        string  `json:"docker_error"`
+	ContainersJson     string  `json:"containers_json"`
+}
+
+type ServerDomain struct {
+	ServerID  string `json:"server_id"`
+	DomainID  string `json:"domain_id"`
+	CreatedAt string `json:"created_at"`
+}
+
+type Session struct {
+	TokenHash string `json:"token_hash"`
+	ExpiresAt int64  `json:"expires_at"`
+}
+
+type Subscription struct {
+	ID                 string         `json:"id"`
+	Name               string         `json:"name"`
+	AmountMinor        int64          `json:"amount_minor"`
+	Currency           string         `json:"currency"`
+	Cycle              string         `json:"cycle"`
+	IntervalDays       int64          `json:"interval_days"`
+	DueDate            string         `json:"due_date"`
+	Category           string         `json:"category"`
+	RenewalMode        string         `json:"renewal_mode"`
+	Intention          string         `json:"intention"`
+	RenewalAmountMinor int64          `json:"renewal_amount_minor"`
+	Account            string         `json:"account"`
+	PaymentMethod      string         `json:"payment_method"`
+	ManagementUrl      string         `json:"management_url"`
+	Notes              string         `json:"notes"`
+	Archived           int64          `json:"archived"`
+	CreatedAt          string         `json:"created_at"`
+	UpdatedAt          string         `json:"updated_at"`
+	PresetKey          string         `json:"preset_key"`
+	AccountID          sql.NullString `json:"account_id"`
+	BillingAccountID   sql.NullString `json:"billing_account_id"`
+}
+
+type VaultConfig struct {
+	ID                 int64  `json:"id"`
+	KdfSalt            string `json:"kdf_salt"`
+	KdfIterations      int64  `json:"kdf_iterations"`
+	WrappedVaultKey    string `json:"wrapped_vault_key"`
+	RecoverySalt       string `json:"recovery_salt"`
+	WrappedRecoveryKey string `json:"wrapped_recovery_key"`
+	KeyVersion         int64  `json:"key_version"`
+	CreatedAt          string `json:"created_at"`
+	UpdatedAt          string `json:"updated_at"`
 }

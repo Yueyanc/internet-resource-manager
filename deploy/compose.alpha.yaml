@@ -1,0 +1,26 @@
+name: internet-resource-manager
+services:
+  server:
+    image: ${IRM_IMAGE:-ghcr.io/yueyanc/internet-resource-manager:latest}
+    container_name: internet-resource-manager
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3660:8787"
+    env_file:
+      - .env
+    environment:
+      IRM_LISTEN_ADDR: 0.0.0.0:8787
+      IRM_DATA_DIR: /data
+      IRM_AGENT_BIN_DIR: /app/dist
+      IRM_TRUST_PROXY: "true"
+      TZ: Asia/Shanghai
+    volumes:
+      - irm-alpha-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  irm-alpha-data:
+    name: irm-alpha-data

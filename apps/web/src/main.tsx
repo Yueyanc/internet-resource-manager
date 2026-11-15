@@ -1,13 +1,14 @@
 import '@irm/ui/styles.css';
 import 'dayjs/locale/zh-cn';
+import './styles.css';
 
-import { ThemeProvider } from '@irm/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import dayjs from 'dayjs';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { AppProviders } from './app/app-providers';
 import { router } from './router';
 
 dayjs.locale('zh-cn');
@@ -18,9 +19,9 @@ if (!root) throw new Error('Missing application root');
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
+      <AppProviders>
         <RouterProvider router={router} />
-      </ThemeProvider>
+      </AppProviders>
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -35,7 +35,7 @@ func TestHealthReportsActualDatabaseAndUnimplementedCapabilities(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Database != "ok" || body.Capabilities.Auth || body.Capabilities.DomainLookup || body.Capabilities.AgentIngest {
+	if body.Database != "ok" || !body.Capabilities.Auth || body.Capabilities.DomainLookup || !body.Capabilities.AgentIngest {
 		t.Fatalf("unexpected health: %+v", body)
 	}
 	if err := store.Close(); err != nil {
@@ -56,15 +56,24 @@ func TestDomainLifecyclePersistsAndValidatesInput(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	handler := server.NewHandler(store, nil)
+	var cookie *http.Cookie
 	request := func(method, path, body string) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
 		r.Host = "127.0.0.1:8787"
 		r.Header.Set("Content-Type", "application/json")
+		if cookie != nil {
+			r.AddCookie(cookie)
+		}
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
 		return w
 	}
+	setup := request("POST", "/api/v1/auth/setup", `{"username":"admin","password":"test-only-password"}`)
+	if setup.Code != 201 {
+		t.Fatalf("setup: %s", setup.Body)
+	}
+	cookie = setup.Result().Cookies()[0]
 	if body := request("GET", "/api/v1/domains", "").Body.String(); body != "{\"items\":[]}\n" {
 		t.Fatalf("new database is not empty: %s", body)
 	}

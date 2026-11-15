@@ -9,5 +9,6 @@ data
 .env*
 test-results
 playwright-report
+docs/design
 internal/webui/assets/*
 !internal/webui/assets/.gitkeep

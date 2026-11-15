@@ -2,7 +2,7 @@
   "name": "@irm/server",
   "private": true,
   "scripts": {
-    "dev": "go -C ../.. run ./apps/server",
+    "dev": "node ../../scripts/dev-server.mjs",
     "build": "go -C ../.. build -trimpath -o dist/server ./apps/server"
   },
   "devDependencies": { "@irm/web": "workspace:*" }

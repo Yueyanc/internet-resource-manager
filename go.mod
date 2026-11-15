@@ -6,6 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/pressly/goose/v3 v3.30.1
 	github.com/shirou/gopsutil/v4 v4.26.10
+	golang.org/x/crypto v0.59.0
 	golang.org/x/net v0.62.0
 	modernc.org/sqlite v1.62.0
 )
