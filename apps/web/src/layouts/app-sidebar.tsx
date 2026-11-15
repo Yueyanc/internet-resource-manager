@@ -22,11 +22,12 @@ export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; o
       <span className="nav-count">{count ?? '—'}</span>
     </span>
   );
-  const subscriptions = { key: '/subscriptions', icon: <CreditCard size={18} />, label: <Link to="/subscriptions" className="nav-menu-link" aria-label={t('订阅管理')} aria-current={location.pathname === '/subscriptions' ? 'page' : undefined}>{label(t('订阅管理'), counts.isSuccess ? counts.data.subscriptions : undefined)}</Link> };
-  const accounts = { key: '/accounts', icon: <CircleUserRound size={18} />, label: <Link to="/accounts" className="nav-menu-link" aria-label={t('账号与身份')} aria-current={location.pathname === '/accounts' ? 'page' : undefined}>{label(t('账号与身份'), counts.isSuccess ? counts.data.accounts : undefined)}</Link> };
-  const domains = { key: '/domains', icon: <Globe2 size={18} />, label: <Link to="/domains" className="nav-menu-link" aria-label={t('域名')} aria-current={location.pathname === '/domains' ? 'page' : undefined}>{label(t('域名'), counts.isSuccess ? counts.data.domains : undefined)}</Link> };
-  const ips = { key: '/ips', icon: <Network size={18} />, label: <Link to="/ips" className="nav-menu-link" aria-label={t('IP 与节点')} aria-current={location.pathname === '/ips' ? 'page' : undefined}>{label(t('IP 与节点'), counts.isSuccess ? counts.data.ips : undefined)}</Link> };
-  const servers = { key: '/servers', icon: <Server size={18} />, label: <Link to="/servers" className="nav-menu-link" aria-label={t('服务器')} aria-current={location.pathname === '/servers' ? 'page' : undefined}>{label(t('服务器'), counts.isSuccess ? counts.data.servers : undefined)}</Link> };
+  const activeNavKey = location.pathname.startsWith('/servers') ? '/servers' : location.pathname;
+  const subscriptions = { key: '/subscriptions', icon: <CreditCard size={18} />, label: <Link to="/subscriptions" className="nav-menu-link" aria-label={t('订阅管理')} aria-current={activeNavKey === '/subscriptions' ? 'page' : undefined}>{label(t('订阅管理'), counts.isSuccess ? counts.data.subscriptions : undefined)}</Link> };
+  const accounts = { key: '/accounts', icon: <CircleUserRound size={18} />, label: <Link to="/accounts" className="nav-menu-link" aria-label={t('账号与身份')} aria-current={activeNavKey === '/accounts' ? 'page' : undefined}>{label(t('账号与身份'), counts.isSuccess ? counts.data.accounts : undefined)}</Link> };
+  const domains = { key: '/domains', icon: <Globe2 size={18} />, label: <Link to="/domains" className="nav-menu-link" aria-label={t('域名')} aria-current={activeNavKey === '/domains' ? 'page' : undefined}>{label(t('域名'), counts.isSuccess ? counts.data.domains : undefined)}</Link> };
+  const ips = { key: '/ips', icon: <Network size={18} />, label: <Link to="/ips" className="nav-menu-link" aria-label={t('IP 与节点')} aria-current={activeNavKey === '/ips' ? 'page' : undefined}>{label(t('IP 与节点'), counts.isSuccess ? counts.data.ips : undefined)}</Link> };
+  const servers = { key: '/servers', icon: <Server size={18} />, label: <Link to="/servers" className="nav-menu-link" aria-label={t('服务器')} aria-current={activeNavKey === '/servers' ? 'page' : undefined}>{label(t('服务器'), counts.isSuccess ? counts.data.servers : undefined)}</Link> };
   const planned = [
     { key: 'telecom', icon: <Smartphone size={17} />, label: t('手机卡 / eSIM'), disabled: true },
   ];
@@ -56,7 +57,7 @@ export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; o
         <Menu
           mode="inline"
           inlineCollapsed={collapsed}
-          selectedKeys={[location.pathname]}
+          selectedKeys={[activeNavKey]}
           openKeys={collapsed ? undefined : openKeys}
           onOpenChange={keys => !collapsed && setOpenKeys(keys)}
           onClick={onNavigate}

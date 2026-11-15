@@ -36,7 +36,7 @@ export function WorkspaceLayout() {
       ? 'accounts'
       : location.pathname === '/ips'
         ? 'ips'
-        : location.pathname === '/servers'
+        : location.pathname.startsWith('/servers')
           ? 'servers'
           : 'subscriptions';
   const searchLabel = key === 'domains'

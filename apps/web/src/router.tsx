@@ -9,6 +9,7 @@ const AccountsPage = lazyRouteComponent(() => import('./features/accounts/accoun
 const DomainsPage = lazyRouteComponent(() => import('./features/domains/domains-page'), 'DomainsPage');
 const IpsPage = lazyRouteComponent(() => import('./features/ips/ips-page'), 'IpsPage');
 const ServersPage = lazyRouteComponent(() => import('./features/servers/servers-page'), 'ServersPage');
+const ServerDetailPage = lazyRouteComponent(() => import('./features/servers/server-detail-page'), 'ServerDetailPage');
 const SubscriptionsPage = lazyRouteComponent(() => import('./features/subscriptions/subscriptions-page'), 'SubscriptionsPage');
 
 const rootRoute = createRootRoute({ component: Outlet, notFoundComponent: NotFound });
@@ -22,12 +23,13 @@ const detailSearchValidator = (search: Record<string, unknown>): { detail?: stri
 const workspaceRoute = createRoute({ getParentRoute: () => protectedRoute, id: 'workspace', component: WorkspaceLayout });
 const indexRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/', component: () => <Navigate to="/subscriptions" replace /> });
 const accountsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/accounts', validateSearch: detailSearchValidator, component: AccountsPage });
-const domainsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/domains', component: DomainsPage });
+const domainsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/domains', validateSearch: detailSearchValidator, component: DomainsPage });
 const ipsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/ips', validateSearch: detailSearchValidator, component: IpsPage });
 const serversRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/servers', validateSearch: detailSearchValidator, component: ServersPage });
+const serverDetailRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/servers/$serverId', component: ServerDetailPage });
 const subscriptionsRoute = createRoute({ getParentRoute: () => workspaceRoute, path: '/subscriptions', validateSearch: detailSearchValidator, component: SubscriptionsPage });
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([setupRoute, loginRoute, protectedRoute.addChildren([workspaceRoute.addChildren([indexRoute, accountsRoute, domainsRoute, ipsRoute, serversRoute, subscriptionsRoute])])]) });
+export const router = createRouter({ routeTree: rootRoute.addChildren([setupRoute, loginRoute, protectedRoute.addChildren([workspaceRoute.addChildren([indexRoute, accountsRoute, domainsRoute, ipsRoute, serversRoute, serverDetailRoute, subscriptionsRoute])])]) });
 
 declare module '@tanstack/react-router' {
   interface Register { router: typeof router }

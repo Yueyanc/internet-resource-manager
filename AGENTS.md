@@ -30,8 +30,10 @@ Never copy source, patches, credentials, or API assumptions from sibling project
 - Docker socket access is privileged, including read-only filesystem mounts.
 - No SSH password storage, remote shell, or arbitrary command execution.
 
-## Verification
+## Verification & Release
 
 Run `pnpm check`, `pnpm build`, and relevant Playwright tests before finishing.
 Distinguish local tests, cross-compilation, Docker builds, and deployment evidence.
 Record unfinished capabilities in README and `docs/architecture.md`.
+By default after completing a feature or fix and passing verification, commit to `main`, push `origin main`, and create + push the next `vX.Y.Z` Git tag so `.github/workflows/deploy-alpha.yaml` deploys the new release to Alpha (`https://irm.yueyanc.cn`).
+

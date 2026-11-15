@@ -6,14 +6,13 @@ import {
   ipsOptions,
   preferencesOptions,
   renewSubscription,
-  revokeServerAgent,
   type ServerHost,
   serversOptions,
   type Subscription,
   subscriptionsOptions,
 } from '@irm/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { Navigate, useNavigate, useSearch } from '@tanstack/react-router';
 import { App, Button, Dropdown, Empty, Segmented, Skeleton, Tooltip } from 'antd';
 import { ArrowDownWideNarrow, Eye, EyeOff, LayoutGrid, Plus, Table2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -26,7 +25,6 @@ import { monthlyCost } from '../subscriptions/utils/subscription-metrics';
 import { ServerAttentionCard } from './components/server-attention-card';
 import { ServerBreakdownCard } from './components/server-breakdown-card';
 import { ServerCard } from './components/server-card';
-import { ServerDetails } from './components/server-details';
 import { ServerDrawer } from './components/server-drawer';
 import { ServerFilters } from './components/server-filters';
 import { ServerRegionsCard } from './components/server-regions-card';
@@ -67,14 +65,9 @@ export function ServersPage() {
   const [masked, setMasked] = useState(false);
   const [editing, setEditing] = useState<ServerHost>();
   const [connectingAgent, setConnectingAgent] = useState<ServerHost>();
-  const [detailId, setDetailId] = useState<string>();
 
-  const effectiveDetailId = detailId ?? routeSearch.detail;
-  const closeDetail = () => {
-    setDetailId(undefined);
-    if (routeSearch.detail) {
-      void navigate({ to: '/servers', search: {}, replace: true });
-    }
+  const openDetail = (item: ServerHost) => {
+    void navigate({ to: '/servers/$serverId', params: { serverId: item.id } });
   };
 
   const changed = async () => {
@@ -99,19 +92,7 @@ export function ServersPage() {
     mutationFn: deleteServer,
     onSuccess: async () => {
       await changed();
-      closeDetail();
       void message.success(t('服务器已删除'));
-    },
-    onError: (error) => {
-      void message.error(errorMessage(error, locale));
-    },
-  });
-
-  const revokeAgent = useMutation({
-    mutationFn: revokeServerAgent,
-    onSuccess: async () => {
-      await changed();
-      void message.success(t('探针凭据已吊销'));
     },
     onError: (error) => {
       void message.error(errorMessage(error, locale));
@@ -120,7 +101,6 @@ export function ServersPage() {
 
   const available = servers.isSuccess;
   const items = useMemo(() => (available ? servers.data.items : []), [available, servers.data]);
-  const allById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
 
   const subscriptionList = useMemo(
     () => (subscriptions.isSuccess ? subscriptions.data.items : []),
@@ -134,10 +114,6 @@ export function ServersPage() {
   const accountList = useMemo(
     () => (accounts.isSuccess ? accounts.data.items : []),
     [accounts.isSuccess, accounts.data],
-  );
-  const accountsById = useMemo(
-    () => new Map(accountList.map(acct => [acct.id, acct])),
-    [accountList],
   );
 
   const domainList = useMemo(
@@ -161,21 +137,6 @@ export function ServersPage() {
     () => Array.from(new Set(items.filter(item => !item.archived).map(item => item.region))).sort(),
     [items],
   );
-
-  const detail = effectiveDetailId ? allById.get(effectiveDetailId) : undefined;
-  const detailSubscription = detail?.subscriptionId ? subscriptionsById.get(detail.subscriptionId) : undefined;
-  const effectiveAccountId = detail?.accountId || detailSubscription?.accountId || '';
-  const detailAccount = effectiveAccountId ? accountsById.get(effectiveAccountId) : undefined;
-  const detailDomains = useMemo(() => {
-    if (!detail) return [];
-    const ids = new Set(detail.domainIds);
-    return domainList.filter(dom => ids.has(dom.id));
-  }, [detail, domainList]);
-  const detailIps = useMemo(() => {
-    if (!detail) return [];
-    const ids = new Set(detail.ipIds);
-    return ipList.filter(ip => ids.has(ip.id) || ip.serverId === detail.id);
-  }, [detail, ipList]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -259,6 +220,10 @@ export function ServersPage() {
     || kind !== 'all'
     || region !== 'all',
   );
+
+  if (routeSearch.detail) {
+    return <Navigate to="/servers/$serverId" params={{ serverId: routeSearch.detail }} replace />;
+  }
 
   return (
     <>
@@ -427,7 +392,7 @@ export function ServersPage() {
                           subscriptionsById={subscriptionsById}
                           masked={masked}
                           loading={false}
-                          onDetails={item => setDetailId(item.id)}
+                          onDetails={openDetail}
                           onEdit={item => setEditing(item)}
                           onConnectAgent={item => setConnectingAgent(item)}
                           onRenew={sub => renew.mutateAsync(sub)}
@@ -443,7 +408,7 @@ export function ServersPage() {
                               value={item}
                               subscriptionsById={subscriptionsById}
                               masked={masked}
-                              onDetails={() => setDetailId(item.id)}
+                              onDetails={() => openDetail(item)}
                               onEdit={() => setEditing(item)}
                               onConnectAgent={() => setConnectingAgent(item)}
                               onRenew={sub => renew.mutateAsync(sub)}
@@ -463,34 +428,11 @@ export function ServersPage() {
           />
           <ServerAttentionCard
             data={data}
-            onSelect={item => setDetailId(item.id)}
+            onSelect={openDetail}
           />
           <ServerBreakdownCard data={data} />
         </aside>
       </div>
-
-      {detail && (
-        <ServerDetails
-          value={detail}
-          linkedSubscription={detailSubscription}
-          linkedAccount={detailAccount}
-          linkedIps={detailIps}
-          linkedDomains={detailDomains}
-          agentIngestEnabled={agentIngestEnabled}
-          onClose={closeDetail}
-          onEdit={() => {
-            setEditing(detail);
-            closeDetail();
-          }}
-          onConnectAgent={() => {
-            setConnectingAgent(detail);
-          }}
-          onRevokeAgent={() => revokeAgent.mutateAsync(detail.id)}
-          onRenew={sub => renew.mutateAsync(sub)}
-          busyRenew={Boolean(detailSubscription && busySubId === detailSubscription.id)}
-          busyRevoke={revokeAgent.isPending && revokeAgent.variables === detail.id}
-        />
-      )}
 
       {editing && (
         <ServerDrawer

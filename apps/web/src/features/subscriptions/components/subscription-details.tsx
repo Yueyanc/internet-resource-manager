@@ -197,8 +197,8 @@ export function SubscriptionDetails({
             {linkedServers.map(srv => (
               <Link
                 key={`srv-${srv.id}`}
-                to="/servers"
-                search={{ detail: srv.id }}
+                to="/servers/$serverId"
+                params={{ serverId: srv.id }}
                 className="detail-related-item"
                 onClick={onClose}
               >

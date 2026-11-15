@@ -286,7 +286,7 @@ export function DomainDetails({
           <h4>{`${t('解析承载服务器')} (${linkedServers.length})`}</h4>
           <div className="detail-related-list">
             {linkedServers.map(srv => (
-              <Link key={srv.id} to="/servers" search={{ detail: srv.id }} className="detail-related-item" onClick={onClose}>
+              <Link key={srv.id} to="/servers/$serverId" params={{ serverId: srv.id }} className="detail-related-item" onClick={onClose}>
                 <span>{srv.name}</span>
                 <code>{srv.ipv4 || srv.ipv6 || srv.hostname || srv.region}</code>
               </Link>

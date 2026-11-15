@@ -1,4 +1,4 @@
-import type { Preferences, ServerHost, Subscription } from '@irm/api-client';
+import type { Preferences, ServerContainer, ServerHost, Subscription } from '@irm/api-client';
 import dayjs from 'dayjs';
 
 import { monthlyCost } from '../../subscriptions/utils/subscription-metrics';
@@ -56,6 +56,110 @@ export function formatBinaryBytes(bytes: number): string {
   }
   const digits = val >= 100 || idx === 0 ? 0 : val >= 10 ? 1 : 2;
   return `${Number(val.toFixed(digits))} ${units[idx]}`;
+}
+
+export function formatBytePair(usedBytes: number, totalBytes: number): { used: string; total: string } {
+  if (totalBytes <= 0) {
+    return { used: '0', total: '0 B' };
+  }
+  const tib = 1024 ** 4;
+  const gib = 1024 ** 3;
+  const mib = 1024 ** 2;
+  if (totalBytes >= tib) {
+    return {
+      used: (usedBytes / tib).toFixed(2),
+      total: `${(totalBytes / tib).toFixed(2)} TiB`,
+    };
+  }
+  if (totalBytes >= gib) {
+    const totalVal = totalBytes / gib;
+    const digits = totalVal >= 100 ? 0 : 1;
+    return {
+      used: (usedBytes / gib).toFixed(1),
+      total: `${totalVal.toFixed(digits)} GiB`,
+    };
+  }
+  if (totalBytes >= mib) {
+    return {
+      used: String(Math.round(usedBytes / mib)),
+      total: `${Math.round(totalBytes / mib)} MiB`,
+    };
+  }
+  return {
+    used: formatBinaryBytes(usedBytes),
+    total: formatBinaryBytes(totalBytes),
+  };
+}
+
+export function shortCpuBadge(cpuCores: number, cpuModel: string, arch: ServerHost['arch']): string {
+  const chipMatch = /\b(EPYC|Ryzen|Threadripper|Xeon|Core|Neoverse|Graviton|Ampere|Altra|Apple|Cortex)\b/i.exec(cpuModel);
+  const chip = chipMatch ? chipMatch[1] : (arch === 'arm64' ? 'ARM64' : '');
+  if (cpuCores > 0) {
+    return chip ? `${cpuCores} vCPU ${chip}` : `${cpuCores} vCPU`;
+  }
+  return chip || (arch === 'arm64' ? 'ARM64' : arch === 'amd64' ? 'x86_64' : arch);
+}
+
+export function osFamilyBadge(os: string, fallbackShort: string): string {
+  const lower = os.toLowerCase();
+  if (!lower) return fallbackShort;
+  if (/ubuntu|debian|centos|rocky|alma|alpine|arch|fedora|suse|linux|proxmox|pve|openwrt|fnos|unraid|truenas|synology|dsm|gentoo|kali|nixos/.test(lower)) {
+    return 'Linux';
+  }
+  if (/freebsd|openbsd|netbsd/.test(lower)) return 'BSD';
+  if (/windows/.test(lower)) return 'Windows';
+  if (/macos|darwin/.test(lower)) return 'macOS';
+  return fallbackShort;
+}
+
+export type ContainerStackGroup = {
+  key: string;
+  title: string;
+  isCompose: boolean;
+  running: number;
+  items: ServerContainer[];
+};
+
+export function groupContainersByStack(
+  containers: ServerContainer[],
+  standaloneTitle: string,
+): ContainerStackGroup[] {
+  const composeMap = new Map<string, ServerContainer[]>();
+  const standalone: ServerContainer[] = [];
+
+  for (const c of containers) {
+    const proj = c.composeProject?.trim() ?? '';
+    if (proj) {
+      const list = composeMap.get(proj);
+      if (list) list.push(c);
+      else composeMap.set(proj, [c]);
+    }
+    else {
+      standalone.push(c);
+    }
+  }
+
+  const groups: ContainerStackGroup[] = Array.from(composeMap.entries())
+    .map(([proj, list]) => ({
+      key: `compose:${proj}`,
+      title: proj,
+      isCompose: true,
+      running: list.filter(c => c.state === 'running').length,
+      items: list,
+    }))
+    .sort((a, b) => b.items.length - a.items.length || a.title.localeCompare(b.title));
+
+  if (standalone.length > 0) {
+    groups.push({
+      key: 'standalone',
+      title: standaloneTitle,
+      isCompose: false,
+      running: standalone.filter(c => c.state === 'running').length,
+      items: standalone,
+    });
+  }
+
+  return groups;
 }
 
 export function formatTrafficBytes(bytes: number): string {

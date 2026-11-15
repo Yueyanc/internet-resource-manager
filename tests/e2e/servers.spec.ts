@@ -15,12 +15,14 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test('enroll live server agent, inspect telemetry, archive, and delete', async ({ page }) => {
+test('enroll live server agent, inspect cockpit, archive, and delete', async ({ page }) => {
   await page.goto('/servers');
   await page.getByRole('button', { name: '新建服务器', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建服务器' });
 
+  await modal.getByRole('switch', { name: '读取 Docker 容器列表（特权接口 · 默认关闭）' }).click();
   const commandPre = modal.locator('.server-command-pre code');
+  await expect(commandPre).toContainText('--docker');
   await expect(commandPre).toContainText('--token \'irm_enroll_');
   const cmdText = await commandPre.innerText();
   const enrollToken = /--token '(irm_enroll_[A-Za-z0-9_-]+)'/.exec(cmdText)![1]!;
@@ -56,9 +58,26 @@ test('enroll live server agent, inspect telemetry, archive, and delete', async (
     publicIpv6: '',
     privateIp: '100.88.12.9',
     sshPort: 22,
-    dockerEnabled: false,
-    dockerAvailable: false,
-    containers: [],
+    dockerEnabled: true,
+    dockerAvailable: true,
+    containers: [
+      {
+        id: 'ctr-openresty',
+        name: 'openresty',
+        image: 'openresty/openresty:alpine',
+        state: 'running',
+        status: 'Up 14 days',
+        composeProject: '1panel-gateway',
+        composeService: 'openresty',
+      },
+      {
+        id: 'ctr-irm',
+        name: 'resource-manager',
+        image: 'ghcr.io/irm:latest',
+        state: 'running',
+        status: 'Up 2 hours',
+      },
+    ],
   };
 
   const enrollRes = await page.request.post('/agent/v1/enroll', {
@@ -81,12 +100,40 @@ test('enroll live server agent, inspect telemetry, archive, and delete', async (
   const agentCard = page.locator('.server-card').filter({ hasText: 'hk-edge-01' });
   await expect(agentCard).toContainText('实时在线');
   await expect(agentCard).toContainText('39%');
+  await expect(agentCard).toContainText('2/2');
 
-  await cardAction(page, 'hk-edge-01', '编辑服务器');
+  // Click card to navigate into dedicated /servers/$serverId cockpit
+  await agentCard.getByRole('button', { name: '查看 hk-edge-01' }).click();
+  await expect(page).toHaveURL(/\/servers\/[A-Z0-9]+$/);
+  await expect(page.getByRole('link', { name: '服务器' }).first()).toHaveAttribute('aria-current', 'page');
+
+  const passport = page.locator('.server-passport-card');
+  await expect(passport).toContainText('hk-edge-01');
+  await expect(passport).toContainText('ssh root@100.88.12.9');
+  await expect(passport).toContainText('4 vCPU EPYC');
+  await expect(passport).toContainText('80 GiB NVME');
+
+  const bento = page.locator('.server-bento-grid');
+  await expect(bento).toContainText('38.6%');
+  await expect(bento).toContainText('剩余 56 GiB');
+
+  const stacks = page.locator('.server-cockpit-panel.is-stacks');
+  await expect(stacks).toContainText('2/2 运行中');
+  await expect(stacks).toContainText('1panel-gateway');
+  await expect(stacks).toContainText('openresty');
+  await expect(stacks).toContainText('独立运行容器');
+  await expect(stacks).toContainText('resource-manager');
+
+  // Edit in-place from cockpit to archive, then return to /servers and delete
+  await page.getByRole('button', { name: '编辑服务器', exact: true }).click();
   const drawer = page.getByRole('dialog', { name: '编辑服务器' });
   await drawer.getByLabel('已停用归档').click();
   await drawer.getByRole('button', { name: '保存服务器', exact: true }).click();
   await expect(drawer).not.toBeVisible();
+  await expect(page.getByText('该服务器当前处于已归档状态，不计入在役算力与到期提醒。')).toBeVisible();
+
+  await page.locator('.server-cockpit-back-pill').click();
+  await expect(page).toHaveURL(/\/servers$/);
 
   await page.getByRole('button', { name: '筛选', exact: true }).click();
   await page.getByLabel('运行状态').click();
