@@ -282,7 +282,7 @@ export function SubscriptionPropertySheet({
   const amountInputWidth = useMemo(() => {
     const displayed = editingAmountText ?? (rawAmount === null || rawAmount === undefined ? '' : String(rawAmount));
     const chars = Math.min(10, Math.max(1, displayed.length || 1));
-    return `calc(${chars}ch + 14px)`;
+    return `calc(${chars}ch + 18px)`;
   }, [editingAmountText, rawAmount]);
 
   const cycleShortLabel = useMemo(() => {
