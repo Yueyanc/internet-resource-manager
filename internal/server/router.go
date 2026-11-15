@@ -9,6 +9,7 @@ import (
 
 	"github.com/Yueyanc/internet-resource-manager/internal/ipaddr"
 	"github.com/Yueyanc/internet-resource-manager/internal/storage"
+	"github.com/Yueyanc/internet-resource-manager/internal/updater"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -22,6 +23,9 @@ type handlerConfig struct {
 	allowedOrigins []string
 	trustProxy     bool
 	version        string
+	buildType      string
+	updaterSvc     *updater.Service
+	restartFn      func()
 }
 
 func ParseAllowedOrigins(raw string) ([]string, error) {
@@ -82,6 +86,30 @@ func WithVersion(version string) Option {
 	}
 }
 
+func WithBuildType(buildType string) Option {
+	return func(cfg *handlerConfig) {
+		if trimmed := strings.TrimSpace(buildType); trimmed != "" {
+			cfg.buildType = trimmed
+		}
+	}
+}
+
+func WithUpdater(svc *updater.Service) Option {
+	return func(cfg *handlerConfig) {
+		if svc != nil {
+			cfg.updaterSvc = svc
+		}
+	}
+}
+
+func WithRestartFunc(fn func()) Option {
+	return func(cfg *handlerConfig) {
+		if fn != nil {
+			cfg.restartFn = fn
+		}
+	}
+}
+
 func buildHandlerConfig(opts ...Option) handlerConfig {
 	cfg := handlerConfig{
 		ipLookuper: ipaddr.NewDefaultLookuper(),
@@ -113,6 +141,15 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 	cfg := buildHandlerConfig(opts...)
 	authentication := &authHandler{store: store, trustProxy: cfg.trustProxy}
 	gateway := newAgentGateway(store, cfg.ipLookuper, cfg.agentBinDir, cfg.trustProxy)
+	updaterSvc := cfg.updaterSvc
+	if updaterSvc == nil {
+		updaterSvc = updater.New(updater.Config{
+			CurrentVersion: cfg.version,
+			BuildType:      cfg.buildType,
+			AgentBinDir:    cfg.agentBinDir,
+			Store:          store,
+		})
+	}
 
 	allowedHosts := make(map[string]struct{})
 	cop := http.NewCrossOriginProtection()
@@ -141,7 +178,7 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
 				"status": "ok", "database": "ok", "version": cfg.version,
-				"capabilities": map[string]bool{"auth": true, "domainLookup": false, "agentIngest": true},
+				"capabilities": map[string]bool{"auth": true, "domainLookup": false, "agentIngest": true, "selfUpdate": updaterSvc.CanSelfUpdate()},
 			})
 		})
 		authentication.routes(api)
@@ -153,6 +190,7 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 			vaultRoutes(private, store)
 			ipRoutes(private, store, cfg.ipLookuper, cfg.ipProber)
 			serverRoutes(private, store, cfg.ipLookuper)
+			systemRoutes(private, updaterSvc, cfg.restartFn)
 		})
 	})
 	adminRouter.NotFound(func(w http.ResponseWriter, r *http.Request) {

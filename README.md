@@ -118,10 +118,12 @@ docker compose -f deploy/compose.yaml up --build -d
 访问 http://127.0.0.1:8787。Compose 只发布到宿主机 loopback，数据存放在
 命名卷 `irm_data`。容器内包含预编译的 `server` 与 `irm-agent-linux-{amd64,arm64}`，不包含 Node.js，且以非 root 用户运行。
 
+- `IRM_GITHUB_REPO`（默认 `Yueyanc/internet-resource-manager`）：供左上角侧栏版本胶囊（`VersionBadge`）在线检查 GitHub Releases、手动一键升级与回退历史版本。升级或跨版本切换前会自动生成 `VACUUM INTO` SQLite 热备份快照（保留最近 5 份），强制校验 `checksums.txt` SHA-256 与二进制 `-version` 自检；支持本地 `.backup` 零网络秒退或近 3 个稳定版回退（可选同步恢复升级前 SQLite 快照），Docker 容器模式下通过持久化卷 `/data/bin` 覆盖层跨重启保留并在外部重新拉取新镜像时自动清理。
+
 CI/CD 流水线（GitHub Actions）：
 
 - `.github/workflows/ci.yaml`：`main` 推送与 PR 自动执行 `pnpm check`、`sqlc` 漂移校验、`pnpm build`、Playwright E2E 与 Docker 构建验证。
-- `.github/workflows/deploy-alpha.yaml`：当在 `main` 分支打 `v*` 标签并推送时，自动校验该标签归属 `main` 分支、执行质量门禁、构建带版本号与双架构探针的镜像推送至 GHCR，并通过 SSH 滚动部署至 Alpha 服务器（`deploy/compose.alpha.yaml`）。
+- `.github/workflows/deploy-alpha.yaml`：当在 `main` 分支打 `v*` 标签并推送时，自动校验该标签归属 `main` 分支、执行质量门禁、构建发布 `irm-release-linux-{amd64,arm64}.tar.gz` + `checksums.txt` 至 GitHub Releases、推送 GHCR 镜像，并通过 SSH 滚动部署至 Alpha 服务器（`deploy/compose.alpha.yaml`）。
 
 备份当前 SQLite 时应先停止服务再复制数据库文件，或使用 SQLite 一致性备份
 接口，不能只在运行时随意复制主文件而忽略 WAL。不要把数据库或主密钥推送到 GitHub。

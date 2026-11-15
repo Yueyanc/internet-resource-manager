@@ -2,11 +2,12 @@ import { authOptions, signIn } from '@irm/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from '@tanstack/react-router';
 import { Alert, Button, Card, Form, Input } from 'antd';
-import { ArrowRight, Layers3, LockKeyhole, UserRound } from 'lucide-react';
+import { ArrowRight, LockKeyhole, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { ColorModeButton, LanguageSwitcher } from '../../shared/appearance-controls';
+import { BrandLogo } from '../../shared/brand-logo';
 import { errorMessage } from '../../shared/errors';
 import { Loading, QueryError } from '../../shared/feedback';
 import { updateSession } from '../../shared/session';
@@ -75,7 +76,7 @@ export function AuthPage({ mode }: {
         <LanguageSwitcher />
       </div>
       <div className="auth-brand">
-        <span className="brand-mark"><Layers3 size={23} /></span>
+        <span className="brand-mark"><BrandLogo size={30} /></span>
         <span>
           IRM
           <span className="brand-divider">/</span>

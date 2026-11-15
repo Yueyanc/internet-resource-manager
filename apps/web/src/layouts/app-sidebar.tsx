@@ -2,11 +2,13 @@ import { countsOptions } from '@irm/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from '@tanstack/react-router';
 import { Button, Dropdown, Menu, Tooltip } from 'antd';
-import { CircleUserRound, CreditCard, Globe2, Layers3, Network, PanelLeftClose, PanelLeftOpen, Plus, Server, Smartphone } from 'lucide-react';
+import { CircleUserRound, CreditCard, Globe2, Network, PanelLeftClose, PanelLeftOpen, Plus, Server, Smartphone } from 'lucide-react';
 import { useState } from 'react';
 
 import { usePreferences } from '../app/preferences-context';
 import { ColorModeButton } from '../shared/appearance-controls';
+import { BrandLogo } from '../shared/brand-logo';
+import { VersionBadge } from './version-badge';
 import { useWorkspace } from './workspace-context';
 
 export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
@@ -35,9 +37,10 @@ export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; o
     <>
       <div className="sidebar-brand">
         <Link to="/subscriptions" className="sidebar-logo" aria-label={t('资源管家')} onClick={onNavigate}>
-          <Layers3 size={25} strokeWidth={1.8} />
+          <BrandLogo size={28} />
           {!collapsed && <span>{t('资源管家')}</span>}
         </Link>
+        <VersionBadge collapsed={collapsed} />
       </div>
       <Dropdown
         trigger={['click']}

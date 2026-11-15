@@ -21,6 +21,17 @@ test('setup or login, theme toggle, session persistence, and logout revocation',
   await expect(page.getByRole('button', { name: '新建订阅', exact: true })).toHaveCSS('background-color', 'rgb(27, 38, 36)');
   await page.getByRole('button', { name: '切换为浅色模式' }).click();
 
+  const versionBtn = page.locator('.sidebar .sidebar-version-badge');
+  await expect(versionBtn).toBeVisible();
+  await versionBtn.click();
+  const popover = page.getByRole('dialog', { name: '系统版本与更新' });
+  await expect(popover).toBeVisible();
+  await expect(popover.getByText('手动回退历史版本')).toBeVisible();
+  await popover.getByRole('button', { name: '手动升级 / 回退命令' }).click();
+  await expect(popover.getByRole('button', { name: 'Docker Compose', exact: true })).toBeVisible();
+  await versionBtn.click();
+  await expect(popover).toBeHidden();
+
   await page.getByRole('button', { name: '当前用户' }).click();
   await page.getByRole('menuitem', { name: '退出登录' }).click();
   await expect(page).toHaveURL(/\/login$/);

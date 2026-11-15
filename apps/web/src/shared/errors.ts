@@ -32,6 +32,14 @@ const errors: Record<string, string> = {
   conflict: 'The record has changed. Refresh and try again.',
   not_found: 'This resource no longer exists.',
   invalid_rates: 'Enter positive rates for every currency. CNY must remain 1.',
+  already_up_to_date: 'Already running the latest version.',
+  operation_in_progress: 'A system update or rollback is already in progress.',
+  update_not_supported: 'Online binary replacement is disabled in development builds. Use manual commands instead.',
+  rollback_version_not_allowed: 'The selected version is not in the allowed rollback list.',
+  no_local_backup: 'No local previous-version backup binary was found.',
+  no_database_backup: 'No SQLite snapshot backup was found for the selected version.',
+  update_failed: 'System version switch failed. Check server connectivity and try again.',
+  restart_not_supported: 'Online restart is not supported in this runtime environment.',
   internal_error: 'The operation failed. Please try again later.',
 };
 

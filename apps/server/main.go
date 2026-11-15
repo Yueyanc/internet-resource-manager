@@ -18,10 +18,14 @@ import (
 	"github.com/Yueyanc/internet-resource-manager/internal/auth"
 	"github.com/Yueyanc/internet-resource-manager/internal/server"
 	"github.com/Yueyanc/internet-resource-manager/internal/storage"
+	"github.com/Yueyanc/internet-resource-manager/internal/updater"
 	"github.com/Yueyanc/internet-resource-manager/internal/webui"
 )
 
-var version = "0.1.0-dev"
+var (
+	version   = "0.1.0-dev"
+	buildType = "dev"
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -31,9 +35,16 @@ func main() {
 }
 
 func run() error {
+	printVersion := flag.Bool("version", false, "print server version and exit")
 	migrateOnly := flag.Bool("migrate-only", false, "apply database migrations and exit")
 	healthcheck := flag.Bool("healthcheck", false, "probe local health endpoint and exit")
 	flag.Parse()
+
+	appVersion := env("IRM_VERSION", version)
+	if *printVersion {
+		fmt.Println(appVersion)
+		return nil
+	}
 
 	addr := env("IRM_LISTEN_ADDR", "127.0.0.1:8787")
 	if *healthcheck {
@@ -49,9 +60,17 @@ func run() error {
 		return err
 	}
 	trustProxy := envBool("IRM_TRUST_PROXY")
-	appVersion := env("IRM_VERSION", version)
+	effectiveBuildType := env("IRM_BUILD_TYPE", buildType)
+	dataDir := env("IRM_DATA_DIR", "data")
+	dbPath := filepath.Join(dataDir, "irm.db")
 
-	store, err := storage.Open(ctx, filepath.Join(env("IRM_DATA_DIR", "data"), "irm.db"))
+	if restored, restoreErr := storage.ApplyPendingRestore(dbPath); restoreErr != nil {
+		slog.Error("failed to apply staged database restore", "error", restoreErr)
+	} else if restored {
+		slog.Info("restored pre-upgrade database snapshot prior to opening SQLite", "path", dbPath)
+	}
+
+	store, err := storage.Open(ctx, dbPath)
 	if err != nil {
 		return err
 	}
@@ -75,10 +94,25 @@ func run() error {
 		}
 	}
 
+	agentBinDir := env("IRM_AGENT_BIN_DIR", "dist")
+	updaterSvc := updater.New(updater.Config{
+		Repo:           env("IRM_GITHUB_REPO", ""),
+		CurrentVersion: appVersion,
+		BuildType:      effectiveBuildType,
+		ImageVersion:   os.Getenv("IRM_IMAGE_VERSION"),
+		DataDir:        dataDir,
+		AgentBinDir:    agentBinDir,
+		Store:          store,
+	})
+
 	opts := []server.Option{
 		server.WithAllowedOrigins(allowedOrigins),
 		server.WithTrustedProxy(trustProxy),
 		server.WithVersion(appVersion),
+		server.WithBuildType(effectiveBuildType),
+		server.WithAgentBinaryDir(agentBinDir),
+		server.WithUpdater(updaterSvc),
+		server.WithRestartFunc(func() { stop() }),
 	}
 	httpServer := &http.Server{
 		Addr:              addr,
@@ -91,7 +125,7 @@ func run() error {
 	}
 	errorsCh := make(chan error, 2)
 	go func() { errorsCh <- httpServer.ListenAndServe() }()
-	slog.Info("server starting", "address", addr, "version", appVersion, "allowedOrigins", allowedOrigins, "trustProxy", trustProxy)
+	slog.Info("server starting", "address", addr, "version", appVersion, "buildType", effectiveBuildType, "allowedOrigins", allowedOrigins, "trustProxy", trustProxy)
 
 	var agentServer *http.Server
 	if agentAddr := env("IRM_AGENT_LISTEN_ADDR", ""); agentAddr != "" {

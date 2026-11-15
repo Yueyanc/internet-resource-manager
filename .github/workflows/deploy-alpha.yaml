@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -73,6 +73,39 @@ jobs:
           pnpm check
           pnpm db:generate
           git diff --exit-code -- internal/storage/queries
+
+      - name: Build and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @irm/web build
+          mkdir -p .release/agent-dist .release/out
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o .release/agent-dist/irm-agent-linux-amd64 ./apps/agent
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o .release/agent-dist/irm-agent-linux-arm64 ./apps/agent
+
+          for ARCH in amd64 arm64; do
+            STAGE=".release/stage-${ARCH}"
+            mkdir -p "${STAGE}/dist"
+            CGO_ENABLED=0 GOOS=linux GOARCH="${ARCH}" go build -trimpath \
+              -ldflags="-s -w -X main.version=${RELEASE_TAG} -X main.buildType=release" \
+              -o "${STAGE}/server" ./apps/server
+            cp .release/agent-dist/irm-agent-linux-* "${STAGE}/dist/"
+            tar -C "${STAGE}" -czf ".release/out/irm-release-linux-${ARCH}.tar.gz" server dist
+          done
+
+          (
+            cd .release/out
+            sha256sum irm-release-linux-amd64.tar.gz irm-release-linux-arm64.tar.gz > checksums.txt
+          )
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" .release/out/* --clobber
+          else
+            gh release create "${RELEASE_TAG}" .release/out/* --verify-tag --title "${RELEASE_TAG}" --generate-notes
+          fi
+          rm -rf .release
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin

@@ -53,7 +53,12 @@ const healthSchema = z.object({
   status: z.literal('ok'),
   database: z.literal('ok'),
   version: z.string(),
-  capabilities: z.object({ auth: z.boolean(), domainLookup: z.boolean(), agentIngest: z.boolean() }),
+  capabilities: z.object({
+    auth: z.boolean(),
+    domainLookup: z.boolean(),
+    agentIngest: z.boolean(),
+    selfUpdate: z.boolean().optional(),
+  }),
 });
 
 export const healthOptions = queryOptions({
