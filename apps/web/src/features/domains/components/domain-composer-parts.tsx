@@ -32,6 +32,7 @@ import {
   Archive,
   Check,
   ChevronDown,
+  Cloud,
   FileBadge2,
   FileText,
   Globe,
@@ -229,6 +230,9 @@ export function DomainPropertySheet({
   isEditing = false,
   initialAccountId,
   initialOpenExtras = [],
+  cloudflareConnectedCount = 0,
+  cloudflareHasError = false,
+  onOpenCloudflareSync,
   submitting,
   onCancel,
 }: {
@@ -243,6 +247,9 @@ export function DomainPropertySheet({
   isEditing?: boolean;
   initialAccountId?: string;
   initialOpenExtras?: DomainExtraKey[];
+  cloudflareConnectedCount?: number;
+  cloudflareHasError?: boolean;
+  onOpenCloudflareSync?: () => void;
   submitting: boolean;
   onCancel: () => void;
 }) {
@@ -321,6 +328,11 @@ export function DomainPropertySheet({
     }),
     [explicitPreset, presetKey, watchedRegistrar, watchedDns, watchedName],
   );
+  const combinedProviderText = `${watchedRegistrar} ${watchedDns}`;
+  const isCloudflareSelected = presetKey === 'cloudflare'
+    || inferredPreset?.key === 'cloudflare'
+    || combinedProviderText.toLowerCase().includes('cloudflare')
+    || combinedProviderText.includes('橙云');
 
   const toggleExtra = (key: DomainExtraKey) => {
     setOpenExtras((prev) => {
@@ -441,6 +453,39 @@ export function DomainPropertySheet({
           </span>
         </div>
       </div>
+
+      {onOpenCloudflareSync && isCloudflareSelected && (
+        <div className="cf-composer-callout">
+          <div className="cf-composer-callout-meta">
+            <span className="cf-composer-callout-icon" aria-hidden="true">
+              <Cloud size={16} />
+            </span>
+            <div className="cf-composer-callout-copy">
+              <strong>
+                {t(cloudflareConnectedCount > 0 ? '已接入 Cloudflare 只读同步' : '支持 Cloudflare 只读自动同步')}
+              </strong>
+              <p>
+                {t(
+                  cloudflareConnectedCount > 0
+                    ? '无需逐个手填，可一键从已绑定的 Cloudflare 账号拉取最新域名、到期日与解析拓扑。'
+                    : '无需逐个手填，通过只读 API 令牌一键批量导入名下托管域名、到期日与服务器关联。',
+                )}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="small"
+            onClick={onOpenCloudflareSync}
+            className="cf-sync-trigger-btn is-compact"
+            icon={<Cloud size={13} />}
+          >
+            <span>{t('Cloudflare 同步')}</span>
+            {cloudflareConnectedCount > 0 && (
+              <span className={`cf-live-dot ${cloudflareHasError ? 'is-error' : ''}`} />
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Signature Strip: Live Domain Metadata + WHOIS Privacy Quick Pill */}
       <div className="sheet-signature-strip">

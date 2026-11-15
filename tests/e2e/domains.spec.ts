@@ -53,9 +53,26 @@ test('create domain with RDAP auto-fill, inspect Cloudflare sync modal, edit/arc
   await page.getByRole('button', { name: '新建域名', exact: true }).click();
   const modal = page.getByRole('dialog', { name: '新建域名' });
 
+  // Before selecting Cloudflare, inline Cloudflare Sync callout is hidden
+  await expect(modal.getByRole('button', { name: 'Cloudflare 同步' })).toHaveCount(0);
+
+  // Selecting Cloudflare preset surfaces inline Cloudflare Sync callout
+  await modal.getByRole('button', { name: '更换图标' }).click();
+  await page.locator('.preset-popover-item').filter({ hasText: 'Cloudflare' }).first().click();
+  await expect(modal.getByText('支持 Cloudflare 只读自动同步')).toBeVisible();
+  await modal.getByRole('button', { name: 'Cloudflare 同步' }).click();
+
+  // Modal switches inline to Cloudflare Read-Only Asset Sync and returns cleanly
+  const inlineCfDialog = page.getByRole('dialog', { name: /Cloudflare 只读资产同步/ });
+  await expect(inlineCfDialog).toBeVisible();
+  await expect(inlineCfDialog.getByRole('link', { name: '一键打开 Cloudflare 只读令牌模板' })).toBeVisible();
+  await inlineCfDialog.getByRole('button', { name: '返回手动录入' }).click();
+  await expect(modal).toBeVisible();
+
   await modal.getByLabel('域名', { exact: true }).fill(`https://${domain}/docs`);
   await modal.getByRole('button', { name: '自动查询 RDAP' }).click();
   await expect(page.getByText(/已自动回填注册商与到期日/)).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Cloudflare 同步' })).toBeVisible();
 
   await modal.getByRole('button', { name: '保存域名', exact: true }).click();
   await expect(modal).not.toBeVisible();

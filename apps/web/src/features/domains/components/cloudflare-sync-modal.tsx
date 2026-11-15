@@ -27,14 +27,20 @@ import { usePreferences } from '../../../app/preferences-context';
 import { errorMessage } from '../../../shared/errors';
 import { accountDisplayTitle } from '../../accounts/utils/account-metrics';
 
-export function CloudflareSyncModal({
-  open,
+export function CloudflareSyncPanel({
+  active = true,
   accounts,
-  onClose,
+  initialAccountId = '',
+  cancelLabel,
+  onCancel,
+  onSynced,
 }: {
-  open: boolean;
+  active?: boolean;
   accounts: Account[];
-  onClose: () => void;
+  initialAccountId?: string;
+  cancelLabel?: string;
+  onCancel: () => void;
+  onSynced?: () => void;
 }) {
   const { t, locale } = usePreferences();
   const { modal, message } = App.useApp();
@@ -42,17 +48,17 @@ export function CloudflareSyncModal({
 
   const [apiToken, setApiToken] = useState('');
   const [label, setLabel] = useState('');
-  const [accountId, setAccountId] = useState('');
+  const [accountId, setAccountId] = useState(initialAccountId);
   const [showAddForm, setShowAddForm] = useState(false);
 
   const templateQuery = useQuery({
     ...cloudflareTemplateOptions,
-    enabled: open,
+    enabled: active,
   });
 
   const integrationsQuery = useQuery({
     ...integrationsOptions,
-    enabled: open,
+    enabled: active,
   });
 
   const cfConnections = (integrationsQuery.data?.items ?? []).filter(
@@ -93,6 +99,7 @@ export function CloudflareSyncModal({
           }),
         );
       }
+      onSynced?.();
     },
     onError: (err) => {
       void message.error(errorMessage(err, locale));
@@ -114,6 +121,7 @@ export function CloudflareSyncModal({
           }),
         );
       }
+      onSynced?.();
     },
     onError: (err) => {
       void invalidateAll();
@@ -148,6 +156,242 @@ export function CloudflareSyncModal({
   const template = templateQuery.data;
 
   return (
+    <div className="cf-sync-body">
+      {cfConnections.length > 0 && (
+        <div className="cf-conn-section">
+          <div className="cf-conn-section-head">
+            <span>{t('已连接的 Cloudflare 账号')}</span>
+            <button
+              type="button"
+              className="cf-toggle-add-btn"
+              onClick={() => setShowAddForm(prev => !prev)}
+            >
+              <Plus size={13} />
+              <span>{t(showAddForm ? '收起新增面板' : '新增 Cloudflare 账号连接')}</span>
+            </button>
+          </div>
+
+          <div className="cf-conn-list">
+            {cfConnections.map((conn) => {
+              const isSyncing = syncMutation.isPending && syncMutation.variables === conn.id;
+              const statusClass = conn.status === 'ok'
+                ? 'is-ok'
+                : conn.status === 'error'
+                  ? 'is-error'
+                  : 'is-pending';
+              const statusText = conn.status === 'ok'
+                ? t('已同步')
+                : conn.status === 'error'
+                  ? t('同步异常')
+                  : t('待同步');
+
+              return (
+                <div key={conn.id} className="cf-conn-card">
+                  <div className="cf-conn-card-top">
+                    <div className="cf-conn-identity">
+                      <div className="cf-conn-title-row">
+                        <strong>{conn.label}</strong>
+                        <span className={`cf-conn-status ${statusClass}`}>
+                          {conn.status === 'ok'
+                            ? <CheckCircle2 size={12} />
+                            : conn.status === 'error'
+                              ? <XCircle size={12} />
+                              : <RefreshCw size={12} />}
+                          <span>{statusText}</span>
+                        </span>
+                        <code className="cf-token-hint">{conn.tokenHint}</code>
+                      </div>
+                      <div className="cf-conn-sub">
+                        {conn.externalAccountName && <span>{conn.externalAccountName}</span>}
+                        {conn.lastSyncedAt && (
+                          <span>
+                            {t('上次同步：{time}', {
+                              time: dayjs(conn.lastSyncedAt).format('YYYY-MM-DD HH:mm'),
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="cf-conn-actions">
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />}
+                        loading={isSyncing}
+                        onClick={() => syncMutation.mutate(conn.id)}
+                      >
+                        {t('立即同步')}
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        type="text"
+                        aria-label={t('移除连接')}
+                        icon={<Trash2 size={14} />}
+                        onClick={() => confirmDisconnect(conn)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="cf-conn-stats-row">
+                    <span className="account-mini-tag">
+                      {t('{zones} 域名 · {records} 解析 · {tunnels} 隧道', {
+                        zones: conn.stats.zonesTotal,
+                        records: conn.stats.recordsSynced,
+                        tunnels: conn.stats.tunnelsTotal,
+                      })}
+                    </span>
+                    {conn.scopes.map(scope => (
+                      <span key={scope} className="cf-scope-chip">{scope}</span>
+                    ))}
+                  </div>
+
+                  {conn.lastError && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      className="mt-2"
+                      title={conn.lastError}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {formExpanded && (
+        <div className="cf-guide-stack">
+          <div className="cf-step-box">
+            <div className="cf-step-head">
+              <span className="cf-step-num">1</span>
+              <div>
+                <h4>{t('第一步：在 Cloudflare 一键创建只读令牌')}</h4>
+                <p>{t('点击下方按钮会打开已预填最小只读权限（Zone / DNS / Tunnel / Pages / Workers Read）的官方授权页，滚动到底部点击 Continue to summary → Create Token 即可。')}</p>
+              </div>
+            </div>
+
+            <div className="cf-template-actions">
+              <Button
+                href={template?.userTokenUrl ?? 'https://dash.cloudflare.com/profile/api-tokens'}
+                target="_blank"
+                rel="noopener noreferrer"
+                icon={<ExternalLink size={14} />}
+                className="cf-template-btn"
+              >
+                {t('一键打开 Cloudflare 只读令牌模板')}
+              </Button>
+              {template?.accountTokenUrl && (
+                <a
+                  href={template.accountTokenUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="cf-secondary-link"
+                >
+                  <span>{t('企业账号级令牌入口')}</span>
+                  <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+
+            {template && (
+              <div className="cf-perm-pills">
+                {template.permissions.map(perm => (
+                  <span key={perm.key} className="cf-perm-pill" title={perm.description}>
+                    {perm.label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="cf-security-note">
+              <ShieldCheck size={15} />
+              <span>{t('安全承诺：仅申请 Read 只读权限，绝无修改或删除 DNS 解析能力；令牌使用服务端独立 AES-256-GCM 密钥加密落盘，前端与接口永不回显明文。')}</span>
+            </div>
+          </div>
+
+          <div className="cf-step-box">
+            <div className="cf-step-head">
+              <span className="cf-step-num">2</span>
+              <div>
+                <h4>{t('第二步：粘贴 API 令牌并立即同步')}</h4>
+              </div>
+            </div>
+
+            <div className="cf-form-grid">
+              <div className="cf-field-full">
+                <label className="cf-field-label">{t('粘贴 Cloudflare API Token')}</label>
+                <Input.Password
+                  aria-label={t('粘贴 Cloudflare API Token')}
+                  placeholder={t('请输入 Cloudflare 只读 API 令牌')}
+                  prefix={<KeyRound size={14} className="text-gray-400" />}
+                  value={apiToken}
+                  autoComplete="off"
+                  onChange={e => setApiToken(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="cf-field-label">{t('连接备注（可选）')}</label>
+                <Input
+                  aria-label={t('连接备注（可选）')}
+                  placeholder={t('例如：主力 CF 账号 / 工作室账号')}
+                  maxLength={64}
+                  value={label}
+                  onChange={e => setLabel(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="cf-field-label">{t('默认归属注册商账号（可选）')}</label>
+                <Select
+                  className="w-full"
+                  value={accountId}
+                  onChange={val => setAccountId(val)}
+                  options={[
+                    { value: '', label: t('不指定（保持独立）') },
+                    ...activeAccounts.map(acct => ({
+                      value: acct.id,
+                      label: accountDisplayTitle(acct),
+                    })),
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="cf-submit-row">
+              <Button onClick={onCancel}>{cancelLabel ?? t('取消')}</Button>
+              <Button
+                type="primary"
+                loading={connectMutation.isPending}
+                disabled={apiToken.trim().length < 16}
+                icon={<RefreshCw size={14} className={connectMutation.isPending ? 'animate-spin' : ''} />}
+                onClick={() => connectMutation.mutate()}
+              >
+                {t(connectMutation.isPending ? '正在验证并拉取 Cloudflare 资产...' : '验证令牌并同步资产')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CloudflareSyncModal({
+  open,
+  accounts,
+  onClose,
+}: {
+  open: boolean;
+  accounts: Account[];
+  onClose: () => void;
+}) {
+  const { t } = usePreferences();
+
+  return (
     <Modal
       open={open}
       onCancel={onClose}
@@ -166,227 +410,7 @@ export function CloudflareSyncModal({
         </div>
       )}
     >
-      <div className="cf-sync-body">
-        {cfConnections.length > 0 && (
-          <div className="cf-conn-section">
-            <div className="cf-conn-section-head">
-              <span>{t('已连接的 Cloudflare 账号')}</span>
-              <button
-                type="button"
-                className="cf-toggle-add-btn"
-                onClick={() => setShowAddForm(prev => !prev)}
-              >
-                <Plus size={13} />
-                <span>{t(showAddForm ? '收起新增面板' : '新增 Cloudflare 账号连接')}</span>
-              </button>
-            </div>
-
-            <div className="cf-conn-list">
-              {cfConnections.map((conn) => {
-                const isSyncing = syncMutation.isPending && syncMutation.variables === conn.id;
-                const statusClass = conn.status === 'ok'
-                  ? 'is-ok'
-                  : conn.status === 'error'
-                    ? 'is-error'
-                    : 'is-pending';
-                const statusText = conn.status === 'ok'
-                  ? t('已同步')
-                  : conn.status === 'error'
-                    ? t('同步异常')
-                    : t('待同步');
-
-                return (
-                  <div key={conn.id} className="cf-conn-card">
-                    <div className="cf-conn-card-top">
-                      <div className="cf-conn-identity">
-                        <div className="cf-conn-title-row">
-                          <strong>{conn.label}</strong>
-                          <span className={`cf-conn-status ${statusClass}`}>
-                            {conn.status === 'ok'
-                              ? <CheckCircle2 size={12} />
-                              : conn.status === 'error'
-                                ? <XCircle size={12} />
-                                : <RefreshCw size={12} />}
-                            <span>{statusText}</span>
-                          </span>
-                          <code className="cf-token-hint">{conn.tokenHint}</code>
-                        </div>
-                        <div className="cf-conn-sub">
-                          {conn.externalAccountName && <span>{conn.externalAccountName}</span>}
-                          {conn.lastSyncedAt && (
-                            <span>
-                              {t('上次同步：{time}', {
-                                time: dayjs(conn.lastSyncedAt).format('YYYY-MM-DD HH:mm'),
-                              })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="cf-conn-actions">
-                        <Button
-                          size="small"
-                          type="primary"
-                          icon={<RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />}
-                          loading={isSyncing}
-                          onClick={() => syncMutation.mutate(conn.id)}
-                        >
-                          {t('立即同步')}
-                        </Button>
-                        <Button
-                          size="small"
-                          danger
-                          type="text"
-                          aria-label={t('移除连接')}
-                          icon={<Trash2 size={14} />}
-                          onClick={() => confirmDisconnect(conn)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="cf-conn-stats-row">
-                      <span className="account-mini-tag">
-                        {t('{zones} 域名 · {records} 解析 · {tunnels} 隧道', {
-                          zones: conn.stats.zonesTotal,
-                          records: conn.stats.recordsSynced,
-                          tunnels: conn.stats.tunnelsTotal,
-                        })}
-                      </span>
-                      {conn.scopes.map(scope => (
-                        <span key={scope} className="cf-scope-chip">{scope}</span>
-                      ))}
-                    </div>
-
-                    {conn.lastError && (
-                      <Alert
-                        type="error"
-                        showIcon
-                        className="mt-2"
-                        title={conn.lastError}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {formExpanded && (
-          <div className="cf-guide-stack">
-            <div className="cf-step-box">
-              <div className="cf-step-head">
-                <span className="cf-step-num">1</span>
-                <div>
-                  <h4>{t('第一步：在 Cloudflare 一键创建只读令牌')}</h4>
-                  <p>{t('点击下方按钮会打开已预填最小只读权限（Zone / DNS / Tunnel / Pages / Workers Read）的官方授权页，滚动到底部点击 Continue to summary → Create Token 即可。')}</p>
-                </div>
-              </div>
-
-              <div className="cf-template-actions">
-                <Button
-                  href={template?.userTokenUrl ?? 'https://dash.cloudflare.com/profile/api-tokens'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  icon={<ExternalLink size={14} />}
-                  className="cf-template-btn"
-                >
-                  {t('一键打开 Cloudflare 只读令牌模板')}
-                </Button>
-                {template?.accountTokenUrl && (
-                  <a
-                    href={template.accountTokenUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="cf-secondary-link"
-                  >
-                    <span>{t('企业账号级令牌入口')}</span>
-                    <ExternalLink size={12} />
-                  </a>
-                )}
-              </div>
-
-              {template && (
-                <div className="cf-perm-pills">
-                  {template.permissions.map(perm => (
-                    <span key={perm.key} className="cf-perm-pill" title={perm.description}>
-                      {perm.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="cf-security-note">
-                <ShieldCheck size={15} />
-                <span>{t('安全承诺：仅申请 Read 只读权限，绝无修改或删除 DNS 解析能力；令牌使用服务端独立 AES-256-GCM 密钥加密落盘，前端与接口永不回显明文。')}</span>
-              </div>
-            </div>
-
-            <div className="cf-step-box">
-              <div className="cf-step-head">
-                <span className="cf-step-num">2</span>
-                <div>
-                  <h4>{t('第二步：粘贴 API 令牌并立即同步')}</h4>
-                </div>
-              </div>
-
-              <div className="cf-form-grid">
-                <div className="cf-field-full">
-                  <label className="cf-field-label">{t('粘贴 Cloudflare API Token')}</label>
-                  <Input.Password
-                    aria-label={t('粘贴 Cloudflare API Token')}
-                    placeholder={t('请输入 Cloudflare 只读 API 令牌')}
-                    prefix={<KeyRound size={14} className="text-gray-400" />}
-                    value={apiToken}
-                    autoComplete="off"
-                    onChange={e => setApiToken(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="cf-field-label">{t('连接备注（可选）')}</label>
-                  <Input
-                    aria-label={t('连接备注（可选）')}
-                    placeholder={t('例如：主力 CF 账号 / 工作室账号')}
-                    maxLength={64}
-                    value={label}
-                    onChange={e => setLabel(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="cf-field-label">{t('默认归属注册商账号（可选）')}</label>
-                  <Select
-                    className="w-full"
-                    value={accountId}
-                    onChange={val => setAccountId(val)}
-                    options={[
-                      { value: '', label: t('不指定（保持独立）') },
-                      ...activeAccounts.map(acct => ({
-                        value: acct.id,
-                        label: accountDisplayTitle(acct),
-                      })),
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className="cf-submit-row">
-                <Button onClick={onClose}>{t('取消')}</Button>
-                <Button
-                  type="primary"
-                  loading={connectMutation.isPending}
-                  disabled={apiToken.trim().length < 16}
-                  icon={<RefreshCw size={14} className={connectMutation.isPending ? 'animate-spin' : ''} />}
-                  onClick={() => connectMutation.mutate()}
-                >
-                  {t(connectMutation.isPending ? '正在验证并拉取 Cloudflare 资产...' : '验证令牌并同步资产')}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <CloudflareSyncPanel active={open} accounts={accounts} onCancel={onClose} />
     </Modal>
   );
 }

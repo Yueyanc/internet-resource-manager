@@ -2,6 +2,7 @@ import {
   accountsOptions,
   createDomain,
   type DomainInput,
+  integrationsOptions,
   ipsOptions,
   serversOptions,
   type SubscriptionInput,
@@ -10,10 +11,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Form, Input, Modal } from 'antd';
 import dayjs from 'dayjs';
+import { ArrowLeft, Cloud } from 'lucide-react';
 import { useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { errorMessage } from '../../shared/errors';
+import { CloudflareSyncPanel } from './components/cloudflare-sync-modal';
 import {
   type DomainComposerValues,
   DomainPropertySheet,
@@ -21,7 +24,17 @@ import {
 import type { DomainPreset } from './presets/domain-presets';
 import { normalizeDomainDraft } from './utils/domain-metrics';
 
-function DomainModalBody({ onClose }: { onClose: () => void }) {
+export type DomainModalMode = 'manual' | 'cloudflare';
+
+function DomainModalBody({
+  mode,
+  onModeChange,
+  onClose,
+}: {
+  mode: DomainModalMode;
+  onModeChange: (next: DomainModalMode) => void;
+  onClose: () => void;
+}) {
   const { t, locale } = usePreferences();
   const [form] = Form.useForm<DomainComposerValues>();
   const client = useQueryClient();
@@ -33,11 +46,15 @@ function DomainModalBody({ onClose }: { onClose: () => void }) {
   const subscriptionsQuery = useQuery(subscriptionsOptions);
   const serversQuery = useQuery(serversOptions);
   const ipsQuery = useQuery(ipsOptions);
+  const integrationsQuery = useQuery(integrationsOptions);
 
   const activeAccounts = (accountsQuery.isSuccess ? accountsQuery.data.items : []).filter(a => !a.archived);
   const activeSubscriptions = (subscriptionsQuery.isSuccess ? subscriptionsQuery.data.items : []).filter(s => !s.archived);
   const activeServers = (serversQuery.isSuccess ? serversQuery.data.items : []).filter(s => !s.archived);
   const activeIps = (ipsQuery.isSuccess ? ipsQuery.data.items : []).filter(ip => !ip.archived);
+  const cfConnections = (integrationsQuery.data?.items ?? []).filter(item => item.provider === 'cloudflare');
+  const cfHasError = cfConnections.some(item => item.status === 'error');
+  const watchedAccountId = (Form.useWatch('registrarAccountId', form) as string | undefined) ?? '';
 
   const mutation = useMutation({
     mutationFn: (input: DomainInput) => createDomain(input),
@@ -150,60 +167,109 @@ function DomainModalBody({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      {mutation.isError && (
-        <Alert
-          type="error"
-          showIcon
-          className="mb-3"
-          title={errorMessage(mutation.error, locale)}
+      <div hidden={mode !== 'manual'}>
+        {mutation.isError && (
+          <Alert
+            type="error"
+            showIcon
+            className="mb-3"
+            title={errorMessage(mutation.error, locale)}
+          />
+        )}
+
+        <Form
+          form={form}
+          layout="vertical"
+          requiredMark={false}
+          initialValues={initialValues}
+          onFinish={submit}
+          disabled={mutation.isPending}
+        >
+          <Form.Item name="presetKey" hidden><Input /></Form.Item>
+
+          <DomainPropertySheet
+            form={form}
+            presetKey={presetKey}
+            onSelectPreset={selectPreset}
+            onClearPreset={() => {
+              setPresetKey('');
+              form.setFieldValue('presetKey', '');
+            }}
+            subscriptions={activeSubscriptions}
+            accounts={activeAccounts}
+            servers={activeServers}
+            ips={activeIps}
+            cloudflareConnectedCount={cfConnections.length}
+            cloudflareHasError={cfHasError}
+            onOpenCloudflareSync={() => onModeChange('cloudflare')}
+            submitting={mutation.isPending}
+            onCancel={onClose}
+          />
+        </Form>
+      </div>
+
+      {mode === 'cloudflare' && (
+        <CloudflareSyncPanel
+          active
+          accounts={activeAccounts}
+          initialAccountId={watchedAccountId}
+          onCancel={onClose}
+          onSynced={onClose}
         />
       )}
-
-      <Form
-        form={form}
-        layout="vertical"
-        requiredMark={false}
-        initialValues={initialValues}
-        onFinish={submit}
-        disabled={mutation.isPending}
-      >
-        <Form.Item name="presetKey" hidden><Input /></Form.Item>
-
-        <DomainPropertySheet
-          form={form}
-          presetKey={presetKey}
-          onSelectPreset={selectPreset}
-          onClearPreset={() => {
-            setPresetKey('');
-            form.setFieldValue('presetKey', '');
-          }}
-          subscriptions={activeSubscriptions}
-          accounts={activeAccounts}
-          servers={activeServers}
-          ips={activeIps}
-          submitting={mutation.isPending}
-          onCancel={onClose}
-        />
-      </Form>
     </>
   );
 }
 
 export function DomainModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = usePreferences();
+  const [mode, setMode] = useState<DomainModalMode>('manual');
+
+  const handleClose = () => {
+    setMode('manual');
+    onClose();
+  };
 
   return (
     <Modal
-      title={t('新建域名')}
+      title={mode === 'cloudflare'
+        ? (
+            <div className="cf-modal-title">
+              <span className="cf-brand-badge" aria-hidden="true">
+                <Cloud size={17} />
+              </span>
+              <div className="cf-modal-title-body">
+                <div className="cf-modal-title-top">
+                  <h3>{t('Cloudflare 只读资产同步')}</h3>
+                  <button
+                    type="button"
+                    className="cf-back-manual-btn"
+                    onClick={() => setMode('manual')}
+                  >
+                    <ArrowLeft size={13} />
+                    <span>{t('返回手动录入')}</span>
+                  </button>
+                </div>
+                <p>{t('通过严格只读 API 令牌自动导入托管域名、Registrar 到期日、DNS 解析记录与 Zero Trust 隧道，并自动串联名下服务器与 IP 节点。')}</p>
+              </div>
+            </div>
+          )
+        : t('新建域名')}
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={null}
-      width={576}
+      width={mode === 'cloudflare' ? 620 : 576}
       centered
       destroyOnHidden
       className="subscription-sheet-modal"
     >
-      {open && <DomainModalBody onClose={onClose} />}
+      {open && (
+        <DomainModalBody
+          mode={mode}
+          onModeChange={setMode}
+          onClose={handleClose}
+        />
+      )}
     </Modal>
   );
 }

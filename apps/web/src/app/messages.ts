@@ -1040,6 +1040,11 @@ export const english = {
   '展开全部 {count} 条解析记录': 'Show all {count} DNS records',
   '收起解析记录': 'Collapse DNS records',
   '最近元数据核验': 'Last metadata lookup',
+  '支持 Cloudflare 只读自动同步': 'Cloudflare Read-Only Auto Sync',
+  '已接入 Cloudflare 只读同步': 'Cloudflare Read-Only Sync Connected',
+  '无需逐个手填，通过只读 API 令牌一键批量导入名下托管域名、到期日与服务器关联。': 'Skip manual entry—batch-import all Cloudflare zones, expiry dates, DNS records, and server links with a read-only token.',
+  '无需逐个手填，可一键从已绑定的 Cloudflare 账号拉取最新域名、到期日与解析拓扑。': 'Pull the latest zones, expiry dates, and DNS topology directly from your connected Cloudflare account.',
+  '返回手动录入': 'Back to manual entry',
 } as const;
 
 export type MessageKey = keyof typeof english;
