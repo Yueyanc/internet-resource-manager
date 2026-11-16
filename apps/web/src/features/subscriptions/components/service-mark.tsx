@@ -2,7 +2,7 @@ import type { Subscription } from '@irm/api-client';
 import { Cloud, Code2, Globe2, Music2, Radio, Sparkles } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
-import { brandIconUrl } from '../presets/brand-icons';
+import { brandIconUrl } from '../../../shared/brand-icons';
 import type { SubscriptionPreset } from '../presets/subscription-presets';
 import { resolvePreset } from '../presets/subscription-presets';
 import { categories } from '../utils/subscription-metrics';

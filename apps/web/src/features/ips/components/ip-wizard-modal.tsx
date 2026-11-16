@@ -1,18 +1,22 @@
 import {
+  type Account,
   accountsOptions,
+  type Domain,
   domainsOptions,
   integrationsOptions,
   type IpInput,
+  type IpNode,
   previewIpLookup,
   saveIp,
+  type Subscription,
   subscriptionsOptions,
 } from '@irm/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Form, Modal } from 'antd';
+import { Alert, App, Form, Input, Modal } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { ArrowLeft, Cloud } from 'lucide-react';
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useMemo, useState } from 'react';
 
 import { usePreferences } from '../../../app/preferences-context';
 import { errorMessage } from '../../../shared/errors';
@@ -23,9 +27,9 @@ import {
 import { ProviderSyncPanel } from '../../integrations/provider-sync-modal';
 import type { IpPreset, IpPresetVariant } from '../presets/ip-presets';
 import { nextReviewDate } from '../utils/ip-metrics';
-import { type IpLockableField, IpPropertySheet } from './ip-composer-parts';
+import { type IpExtraKey, type IpLockableField, IpPropertySheet } from './ip-composer-parts';
 
-type WizardValues = Omit<IpInput, 'presetKey' | 'nextReviewDate' | 'lastReviewedAt' | 'archived' | 'lookupSource'> & {
+type IpFormValues = Omit<IpInput, 'nextReviewDate' | 'lastReviewedAt'> & {
   nextReviewDate?: Dayjs;
 };
 
@@ -38,40 +42,64 @@ function defaultReviewDate(cycle: IpInput['reviewCycle'], days = 90): Dayjs {
 }
 
 function IpWizardBody({
+  value,
+  subscriptions,
+  domains,
+  accounts,
   mode,
   onModeChange,
   onClose,
 }: {
+  value?: IpNode;
+  subscriptions?: Subscription[];
+  domains?: Domain[];
+  accounts?: Account[];
   mode: IpEntryMode;
   onModeChange: (mode: IpEntryMode) => void;
   onClose: () => void;
 }) {
   const { t, locale } = usePreferences();
-  const [form] = Form.useForm<WizardValues>();
+  const [form] = Form.useForm<IpFormValues>();
   const client = useQueryClient();
   const { message } = App.useApp();
 
-  const subsQuery = useQuery(subscriptionsOptions);
-  const domainsQuery = useQuery(domainsOptions);
-  const accountsQuery = useQuery(accountsOptions);
-  const integrationsQuery = useQuery(integrationsOptions);
+  const subsQuery = useQuery({ ...subscriptionsOptions, enabled: !subscriptions });
+  const domainsQuery = useQuery({ ...domainsOptions, enabled: !domains });
+  const accountsQuery = useQuery({ ...accountsOptions, enabled: !accounts });
+  const integrationsQuery = useQuery({ ...integrationsOptions, enabled: !value });
 
-  const activeSubscriptions = subsQuery.isSuccess ? subsQuery.data.items.filter(item => !item.archived) : [];
-  const allDomains = domainsQuery.isSuccess ? domainsQuery.data.items : [];
-  const activeAccounts = accountsQuery.isSuccess ? accountsQuery.data.items.filter(item => !item.archived) : [];
+  const rawSubscriptions = subscriptions ?? (subsQuery.isSuccess ? subsQuery.data.items : []);
+  const allDomains = domains ?? (domainsQuery.isSuccess ? domainsQuery.data.items : []);
+  const rawAccounts = accounts ?? (accountsQuery.isSuccess ? accountsQuery.data.items : []);
+
+  const activeSubscriptions = rawSubscriptions.filter(item => !item.archived || item.id === value?.subscriptionId);
+  const activeAccounts = rawAccounts.filter(item => !item.archived || Boolean(value?.accountIds.includes(item.id)));
   const providerConnections = integrationsQuery.isSuccess ? integrationsQuery.data.items : [];
 
-  const [presetKey, setPresetKey] = useState('');
+  const [presetKey, setPresetKey] = useState(() => value?.presetKey ?? '');
   const [variantId, setVariantId] = useState('');
-  const [lookupSource, setLookupSource] = useState('manual');
+  const [lookupSource, setLookupSource] = useState(() => value?.lookupSource ?? 'manual');
+
+  const initialOpenExtras = useMemo(() => {
+    const keys: IpExtraKey[] = [];
+    if (!value) return keys;
+    if (value.label.trim()) keys.push('alias');
+    if (value.ptrRecord.trim()) keys.push('ptr');
+    if (value.domainIds.length > 0) keys.push('domains');
+    if (value.accountIds.length > 0) keys.push('accounts');
+    if (value.purityNote.trim() || value.notes.trim() || value.tags.length > 0) keys.push('purity');
+    return keys;
+  }, [value]);
 
   const lookupMutation = useMutation({
     mutationFn: (addr: string) => previewIpLookup(addr),
     onSuccess: (res) => {
       const locks = new Set<IpLockableField>(form.getFieldValue('manualLocks') ?? []);
       const curProvider = String(form.getFieldValue('provider') ?? '').trim();
+      const nextSource = res.source || 'rdap';
       form.setFieldsValue({
         address: res.address,
+        lookupSource: nextSource,
         ...(!locks.has('region') && res.region ? { region: res.region } : {}),
         ...(!locks.has('city') && res.city ? { city: res.city } : {}),
         ...(!locks.has('asn') && res.asn > 0 ? { asn: res.asn } : {}),
@@ -79,7 +107,7 @@ function IpWizardBody({
         ...(!locks.has('ptrRecord') && res.ptrRecord ? { ptrRecord: res.ptrRecord } : {}),
         ...(!curProvider && res.asnOrg ? { provider: res.asnOrg.slice(0, 100) } : {}),
       });
-      setLookupSource(res.source || 'rdap');
+      setLookupSource(nextSource);
       void message.success(t('已填入归属信息'));
     },
     onError: (error) => {
@@ -88,11 +116,11 @@ function IpWizardBody({
   });
 
   const mutation = useMutation({
-    mutationFn: (input: IpInput) => saveIp(input),
+    mutationFn: (input: IpInput) => saveIp(input, value?.id),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['ips'] });
       await client.invalidateQueries({ queryKey: ['nav-counts'] });
-      void message.success(t('IP 节点已添加'));
+      void message.success(t(value ? 'IP 节点已更新' : 'IP 节点已添加'));
       onClose();
     },
   });
@@ -106,13 +134,22 @@ function IpWizardBody({
       city: variant.city,
       ...(variant.asnType ? { asnType: variant.asnType } : {}),
       ...(variant.originType ? { originType: variant.originType } : {}),
-      ...(variant.tags ? { tags: variant.tags } : {}),
+      ...(!value && variant.tags ? { tags: variant.tags } : {}),
     });
   };
 
   const selectPreset = (preset: IpPreset) => {
     setPresetKey(preset.key);
+    form.setFieldValue('presetKey', preset.key);
+    if (value) {
+      if (!String(form.getFieldValue('provider') ?? '').trim()) {
+        form.setFieldValue('provider', locale === 'en-US' ? preset.provider.en : preset.provider.zh);
+      }
+      return;
+    }
+
     setLookupSource('manual');
+    form.setFieldValue('lookupSource', 'manual');
     const firstVariant = preset.variants?.[0];
     const review = preset.recommendedReview ?? 'none';
     form.setFieldsValue({
@@ -142,9 +179,53 @@ function IpWizardBody({
   const clearPreset = () => {
     setPresetKey('');
     setVariantId('');
+    form.setFieldValue('presetKey', '');
   };
 
-  const submit = (values: WizardValues) => {
+  const initialValues: IpFormValues = value
+    ? {
+        ...value,
+        manualLocks: value.manualLocks as IpFormValues['manualLocks'],
+        reviewDays: value.reviewDays || 90,
+        probePort: value.probePort || 443,
+        nextReviewDate: value.nextReviewDate ? dayjs(value.nextReviewDate) : undefined,
+      }
+    : {
+        presetKey: '',
+        lookupSource: 'manual',
+        address: '',
+        provider: '',
+        label: '',
+        category: 'cloud_vps',
+        networkScope: 'overseas_exit',
+        region: 'US',
+        city: '',
+        asn: 0,
+        asnOrg: '',
+        ptrRecord: '',
+        asnType: 'hosting',
+        originType: 'unknown',
+        riskLevel: 'unassessed',
+        purityNote: '',
+        unlocks: {},
+        tags: [],
+        manualLocks: [],
+        role: 'primary',
+        status: 'active',
+        reviewCycle: 'none',
+        reviewDays: 90,
+        probeMode: 'none',
+        probePort: 443,
+        subscriptionId: '',
+        hostLabel: '',
+        domainIds: [],
+        accountIds: [],
+        consoleUrl: '',
+        notes: '',
+        archived: false,
+      };
+
+  const submit = (values: IpFormValues) => {
     const cleanAddress = values.address.trim();
     const cleanProvider = (values.provider ?? '').trim()
       || (values.asnOrg ?? '').trim().slice(0, 100)
@@ -152,7 +233,7 @@ function IpWizardBody({
     const cleanRegion = (values.region ?? 'US').trim().toUpperCase();
 
     mutation.mutate({
-      presetKey,
+      presetKey: values.presetKey ?? presetKey,
       address: cleanAddress,
       networkScope: values.networkScope,
       category: values.category,
@@ -170,7 +251,7 @@ function IpWizardBody({
       unlocks: values.unlocks ?? {},
       tags: values.tags ?? [],
       manualLocks: values.manualLocks ?? [],
-      lookupSource,
+      lookupSource: values.lookupSource ?? lookupSource,
       role: values.role,
       status: values.status,
       reviewCycle: values.reviewCycle,
@@ -178,6 +259,7 @@ function IpWizardBody({
       nextReviewDate: values.reviewCycle === 'none' || !values.nextReviewDate
         ? ''
         : values.nextReviewDate.format('YYYY-MM-DD'),
+      ...(value ? { lastReviewedAt: value.lastReviewedAt } : {}),
       probeMode: values.probeMode,
       probePort: values.probeMode === 'none' ? 0 : (values.probePort || 443),
       subscriptionId: values.subscriptionId ?? '',
@@ -186,11 +268,11 @@ function IpWizardBody({
       accountIds: values.accountIds ?? [],
       consoleUrl: (values.consoleUrl ?? '').trim(),
       notes: (values.notes ?? '').trim(),
-      archived: false,
+      archived: value ? Boolean(values.archived) : false,
     });
   };
 
-  if (mode !== 'manual') {
+  if (!value && mode !== 'manual') {
     const accountIds = (form.getFieldValue('accountIds') as string[] | undefined) ?? [];
     return (
       <ProviderSyncPanel
@@ -222,40 +304,13 @@ function IpWizardBody({
         form={form}
         layout="vertical"
         requiredMark={false}
-        initialValues={{
-          address: '',
-          provider: '',
-          label: '',
-          category: 'cloud_vps',
-          networkScope: 'overseas_exit',
-          region: 'US',
-          city: '',
-          asn: 0,
-          asnOrg: '',
-          ptrRecord: '',
-          asnType: 'hosting',
-          originType: 'unknown',
-          riskLevel: 'unassessed',
-          purityNote: '',
-          unlocks: {},
-          tags: [],
-          manualLocks: [],
-          role: 'primary',
-          status: 'active',
-          reviewCycle: 'none',
-          reviewDays: 90,
-          probeMode: 'none',
-          probePort: 443,
-          subscriptionId: '',
-          hostLabel: '',
-          domainIds: [],
-          accountIds: [],
-          consoleUrl: '',
-          notes: '',
-        }}
+        initialValues={initialValues}
         onFinish={submit}
         disabled={mutation.isPending}
       >
+        <Form.Item name="presetKey" hidden><Input /></Form.Item>
+        <Form.Item name="lookupSource" hidden><Input /></Form.Item>
+
         <IpPropertySheet
           form={form}
           presetKey={presetKey}
@@ -268,8 +323,10 @@ function IpWizardBody({
           subscriptions={activeSubscriptions}
           domains={allDomains}
           accounts={activeAccounts}
-          providerConnections={providerConnections}
-          onOpenProviderSync={prov => onModeChange(prov)}
+          providerConnections={value ? undefined : providerConnections}
+          onOpenProviderSync={value ? undefined : prov => onModeChange(prov)}
+          isEditing={Boolean(value)}
+          initialOpenExtras={initialOpenExtras}
           submitting={mutation.isPending}
           onCancel={onClose}
         />
@@ -280,26 +337,35 @@ function IpWizardBody({
 
 export function IpWizardModal({
   open,
+  value,
+  subscriptions,
+  domains,
+  accounts,
   onClose,
 }: {
   open: boolean;
+  value?: IpNode;
+  subscriptions?: Subscription[];
+  domains?: Domain[];
+  accounts?: Account[];
   onClose: () => void;
 }) {
   const { t, locale } = usePreferences();
   const [mode, setMode] = useState<IpEntryMode>('manual');
+  const effectiveMode: IpEntryMode = value ? 'manual' : mode;
 
   const handleClose = () => {
     setMode('manual');
     onClose();
   };
 
-  const activeBrief = mode !== 'manual' ? PROVIDER_BRIEFS[mode] : undefined;
+  const activeBrief = effectiveMode !== 'manual' ? PROVIDER_BRIEFS[effectiveMode] : undefined;
   const providerTitle = activeBrief ? (locale === 'en-US' ? activeBrief.en : activeBrief.zh) : '';
 
   return (
     <Modal
       open={open}
-      title={mode !== 'manual'
+      title={effectiveMode !== 'manual'
         ? (
             <div className="cf-modal-title">
               <span
@@ -325,15 +391,26 @@ export function IpWizardModal({
               </div>
             </div>
           )
-        : t('新建 IP')}
+        : t(value ? '编辑节点' : '新建 IP')}
       onCancel={handleClose}
-      width={mode !== 'manual' ? 660 : 616}
+      width={effectiveMode !== 'manual' ? 660 : 616}
       centered
       destroyOnHidden
       footer={null}
-      className={mode !== 'manual' ? 'cf-sync-modal' : 'subscription-sheet-modal'}
+      className={effectiveMode !== 'manual' ? 'cf-sync-modal' : 'subscription-sheet-modal'}
     >
-      {open && <IpWizardBody mode={mode} onModeChange={setMode} onClose={handleClose} />}
+      {open && (
+        <IpWizardBody
+          key={value?.id ?? 'new'}
+          value={value}
+          subscriptions={subscriptions}
+          domains={domains}
+          accounts={accounts}
+          mode={effectiveMode}
+          onModeChange={setMode}
+          onClose={handleClose}
+        />
+      )}
     </Modal>
   );
 }

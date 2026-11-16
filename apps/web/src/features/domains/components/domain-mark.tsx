@@ -2,7 +2,7 @@ import type { Domain } from '@irm/api-client';
 import { CloudCog, Globe2, Mail, ParkingSquare, Sparkles } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
-import { domainBrandIconUrl } from '../presets/domain-brand-icons';
+import { brandIconUrl } from '../../../shared/brand-icons';
 import { type DomainPreset, resolveDomainPreset } from '../presets/domain-presets';
 import { domainPurposeMeta } from '../utils/domain-metrics';
 
@@ -24,7 +24,7 @@ export function DomainMark({
   size?: 'xs' | 'sm' | 'md' | 'lg';
 }) {
   const matched = explicitPreset ?? (value ? resolveDomainPreset(value) : undefined);
-  const svgUrl = matched ? domainBrandIconUrl(matched.iconKey) : undefined;
+  const svgUrl = matched ? brandIconUrl(matched.iconKey) : undefined;
   const purposeKey = value?.purpose ?? 'prod';
   const accentColor = matched?.color ?? domainPurposeMeta[purposeKey].color;
   const style = { '--mark-color': accentColor } as CSSProperties;

@@ -34,7 +34,6 @@ import { errorMessage } from '../../shared/errors';
 import { QueryError } from '../../shared/feedback';
 import { ServerCockpitPassport } from './components/server-cockpit-passport';
 import { ServerCockpitWorkspace } from './components/server-cockpit-workspace';
-import { ServerDrawer } from './components/server-drawer';
 import { ServerWizardModal } from './components/server-wizard-modal';
 import { buildSshCommand } from './utils/server-metrics';
 
@@ -457,7 +456,7 @@ export function ServerDetailPage() {
       />
 
       {editing && (
-        <ServerDrawer
+        <ServerWizardModal
           key={server.id}
           open
           value={server}

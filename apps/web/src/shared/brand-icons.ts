@@ -1,4 +1,4 @@
-const svgModules = import.meta.glob<string>('../assets/brands/*.svg', {
+const svgModules = import.meta.glob<string>('../features/*/assets/brands/*.svg', {
   eager: true,
   import: 'default',
 });
@@ -11,6 +11,7 @@ for (const [filePath, url] of Object.entries(svgModules)) {
   }
 }
 
-export function brandIconUrl(key: string): string | undefined {
+export function brandIconUrl(key?: string): string | undefined {
+  if (!key) return undefined;
   return iconsByKey.get(key);
 }

@@ -3,20 +3,6 @@ import { z } from 'zod';
 
 import { request } from './client';
 
-export const cloudflarePermissionSchema = z.object({
-  key: z.string(),
-  type: z.string(),
-  label: z.string(),
-  description: z.string(),
-});
-
-export const cloudflareTemplateSchema = z.object({
-  userTokenUrl: z.string(),
-  accountTokenUrl: z.string(),
-  tokenName: z.string(),
-  permissions: z.array(cloudflarePermissionSchema),
-});
-
 export const syncStatsSchema = z.object({
   zonesTotal: z.number().int().nonnegative().default(0),
   domainsImported: z.number().int().nonnegative().default(0),
@@ -86,30 +72,21 @@ export const providerConnectionSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const cloudflareSyncResponseSchema = z.object({
+export const providerSyncResponseSchema = z.object({
   connection: providerConnectionSchema,
   syncStats: syncStatsSchema.nullable().optional(),
 });
 
-export type CloudflarePermissionSpec = z.infer<typeof cloudflarePermissionSchema>;
-export type CloudflareTemplateInfo = z.infer<typeof cloudflareTemplateSchema>;
 export type ProviderFieldSpec = z.infer<typeof providerFieldSpecSchema>;
 export type ProviderMetaSpec = z.infer<typeof providerMetaSpecSchema>;
 export type SyncStats = z.infer<typeof syncStatsSchema>;
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
-export type CloudflareSyncResponse = z.infer<typeof cloudflareSyncResponseSchema>;
+export type ProviderSyncResponse = z.infer<typeof providerSyncResponseSchema>;
 
 export const integrationProvidersOptions = queryOptions({
   queryKey: ['integrations', 'providers'],
   queryFn: ({ signal }) =>
     request('/integrations/providers', z.object({ items: z.array(providerMetaSpecSchema) }), { signal }),
-  staleTime: 5 * 60 * 1000,
-  retry: false,
-});
-
-export const cloudflareTemplateOptions = queryOptions({
-  queryKey: ['integrations', 'cloudflare', 'template'],
-  queryFn: ({ signal }) => request('/integrations/cloudflare/template', cloudflareTemplateSchema, { signal }),
   staleTime: 5 * 60 * 1000,
   retry: false,
 });
@@ -128,26 +105,14 @@ export function connectProviderIntegration(input: {
   accountId?: string;
   syncNow?: boolean;
 }) {
-  return request('/integrations/connect', cloudflareSyncResponseSchema, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-}
-
-export function connectCloudflare(input: {
-  apiToken: string;
-  label?: string;
-  accountId?: string;
-  syncNow?: boolean;
-}) {
-  return request('/integrations/cloudflare', cloudflareSyncResponseSchema, {
+  return request('/integrations/connect', providerSyncResponseSchema, {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
 export function syncIntegration(id: string) {
-  return request(`/integrations/${encodeURIComponent(id)}/sync`, cloudflareSyncResponseSchema, {
+  return request(`/integrations/${encodeURIComponent(id)}/sync`, providerSyncResponseSchema, {
     method: 'POST',
   });
 }

@@ -1,6 +1,5 @@
 import {
   type Account,
-  cloudflareTemplateOptions,
   connectProviderIntegration,
   deleteIntegration,
   integrationProvidersOptions,
@@ -74,11 +73,6 @@ export function ProviderSyncPanel({
   const providersQuery = useQuery({
     ...integrationProvidersOptions,
     enabled: active,
-  });
-
-  const cfTemplateQuery = useQuery({
-    ...cloudflareTemplateOptions,
-    enabled: active && selectedKey === 'cloudflare',
   });
 
   const integrationsQuery = useQuery({
@@ -227,7 +221,6 @@ export function ProviderSyncPanel({
 
   const formExpanded = providerConnections.length === 0 || showAddForm;
   const activeAccounts = accounts.filter(a => !a.archived);
-  const cfTemplate = cfTemplateQuery.data;
 
   const providerDisplayName = activeSpec
     ? (locale === 'en-US' ? activeSpec.nameEn : activeSpec.name)
@@ -419,11 +412,7 @@ export function ProviderSyncPanel({
 
             <div className="cf-template-actions">
               <a
-                href={
-                  effectiveKey === 'cloudflare' && cfTemplate?.userTokenUrl
-                    ? cfTemplate.userTokenUrl
-                    : activeSpec.primaryActionUrl
-                }
+                href={activeSpec.primaryActionUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="cf-template-primary-btn"
@@ -435,11 +424,7 @@ export function ProviderSyncPanel({
 
               {activeSpec.secondaryActionUrl && activeSpec.secondaryActionLabel && (
                 <a
-                  href={
-                    effectiveKey === 'cloudflare' && cfTemplate?.accountTokenUrl
-                      ? cfTemplate.accountTokenUrl
-                      : activeSpec.secondaryActionUrl
-                  }
+                  href={activeSpec.secondaryActionUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="cf-template-secondary-link"

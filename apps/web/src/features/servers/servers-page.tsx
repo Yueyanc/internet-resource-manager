@@ -27,7 +27,6 @@ import { monthlyCost } from '../subscriptions/utils/subscription-metrics';
 import { ServerAttentionCard } from './components/server-attention-card';
 import { ServerBreakdownCard } from './components/server-breakdown-card';
 import { ServerCard } from './components/server-card';
-import { ServerDrawer } from './components/server-drawer';
 import { ServerFilters } from './components/server-filters';
 import { ServerRegionsCard } from './components/server-regions-card';
 import { ServerSummaryStrip } from './components/server-summary-strip';
@@ -465,7 +464,7 @@ export function ServersPage() {
       </div>
 
       {editing && (
-        <ServerDrawer
+        <ServerWizardModal
           key={editing.id}
           open
           value={editing}

@@ -1,7 +1,7 @@
 export const english = {
   '资源管家': 'Resource Manager', '订阅管理': 'Subscriptions', '订阅': 'Subscriptions', '域名': 'Domains', '域名资源': 'Domains',
   '订阅与身份': 'Subscriptions & identity', '基础设施与网络': 'Infrastructure', '账号与身份': 'Accounts & identity',
-  '手机卡 / eSIM': 'SIM / eSIM', '服务器': 'Servers', 'IP 与节点': 'IP & nodes', '规划中': 'Planned',
+  '服务器': 'Servers', 'IP 与节点': 'IP & nodes',
   '新建': 'New', '新建订阅': 'New subscription', '新建账号': 'New account', '新建域名': 'New domain', '添加域名': 'Add domain',
   '搜索订阅': 'Search subscriptions', '搜索账号': 'Search accounts', '搜索域名': 'Search domains', '搜索': 'Search', '清空搜索': 'Clear search',
   '资源导航': 'Resources', '打开导航': 'Open navigation', '收起菜单': 'Collapse navigation', '展开菜单': 'Expand navigation',

@@ -23,8 +23,8 @@ import { SpendBreakdown } from './components/spend-breakdown';
 import { SpendSummaryStrip } from './components/spend-summary-strip';
 import { SubscriptionCard } from './components/subscription-card';
 import { SubscriptionDetails } from './components/subscription-details';
-import { SubscriptionDrawer } from './components/subscription-drawer';
 import { SubscriptionFilters } from './components/subscription-filters';
+import { SubscriptionWizardModal } from './components/subscription-wizard-modal';
 import { metrics, monthlyCost, remaining } from './utils/subscription-metrics';
 
 export function SubscriptionsPage() {
@@ -283,7 +283,7 @@ export function SubscriptionsPage() {
           renewing={renew.isPending}
         />
       )}
-      {editing && <SubscriptionDrawer key={editing.id} value={editing} open onClose={() => setEditing(undefined)} />}
+      {editing && <SubscriptionWizardModal key={editing.id} value={editing} open onClose={() => setEditing(undefined)} />}
     </>
   );
 }

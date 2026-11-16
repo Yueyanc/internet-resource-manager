@@ -29,11 +29,11 @@ import { DomainAttentionCard } from './components/domain-attention-card';
 import { DomainBreakdownCard } from './components/domain-breakdown-card';
 import { DomainCard } from './components/domain-card';
 import { DomainDetails } from './components/domain-details';
-import { DomainDrawer } from './components/domain-drawer';
 import { DomainFilters } from './components/domain-filters';
 import { DomainRegistrarsCard } from './components/domain-registrars-card';
 import { DomainSummaryStrip } from './components/domain-summary-strip';
 import { DomainTable } from './components/domain-table';
+import { DomainModal } from './domain-modal';
 import { resolveDomainPreset } from './presets/domain-presets';
 import {
   computeDomainMetrics,
@@ -556,7 +556,7 @@ export function DomainsPage() {
       )}
 
       {editing && (
-        <DomainDrawer
+        <DomainModal
           key={editing.id}
           open
           value={editing}

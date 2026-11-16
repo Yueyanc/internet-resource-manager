@@ -2,7 +2,7 @@ import type { Account } from '@irm/api-client';
 import { CircleUserRound, Code2, Compass, Gamepad2, Landmark, Mail, MessageCircle, Sparkles } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
-import { accountBrandIconUrl } from '../presets/account-brand-icons';
+import { brandIconUrl } from '../../../shared/brand-icons';
 import type { AccountPreset } from '../presets/account-presets';
 import { resolveAccountPreset } from '../presets/account-presets';
 import { accountCategoryMeta } from '../utils/account-metrics';
@@ -28,7 +28,7 @@ export function AccountMark({
   size?: 'xs' | 'sm' | 'md' | 'lg';
 }) {
   const matched = explicitPreset ?? (value ? resolveAccountPreset(value) : undefined);
-  const svgUrl = matched ? accountBrandIconUrl(matched.iconKey) : undefined;
+  const svgUrl = matched ? brandIconUrl(matched.iconKey) : undefined;
   const categoryKey = value?.category ?? matched?.category ?? 'other';
   const accentColor = matched?.color ?? accountCategoryMeta[categoryKey].color;
   const style = { '--mark-color': accentColor } as CSSProperties;

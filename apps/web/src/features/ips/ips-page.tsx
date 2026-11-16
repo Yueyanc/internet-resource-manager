@@ -26,12 +26,12 @@ import { ProviderSyncModal } from '../integrations/provider-sync-modal';
 import { IpBreakdownCard } from './components/ip-breakdown-card';
 import { IpCard } from './components/ip-card';
 import { IpDetails } from './components/ip-details';
-import { IpDrawer } from './components/ip-drawer';
 import { IpFilters } from './components/ip-filters';
 import { IpHygieneCard } from './components/ip-hygiene-card';
 import { IpSummaryStrip } from './components/ip-summary-strip';
 import { IpTable } from './components/ip-table';
 import { IpUnlocksCard } from './components/ip-unlocks-card';
+import { IpWizardModal } from './components/ip-wizard-modal';
 import {
   computeIpMetrics,
   ipDisplayTitle,
@@ -523,7 +523,7 @@ export function IpsPage() {
       )}
 
       {editing && (
-        <IpDrawer
+        <IpWizardModal
           key={editing.id}
           open
           value={editing}

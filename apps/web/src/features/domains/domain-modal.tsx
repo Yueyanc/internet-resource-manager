@@ -1,18 +1,24 @@
 import {
+  type Account,
   accountsOptions,
   createDomain,
+  type Domain,
   type DomainInput,
   integrationsOptions,
+  type IpNode,
   ipsOptions,
+  type ServerHost,
   serversOptions,
+  type Subscription,
   type SubscriptionInput,
   subscriptionsOptions,
+  updateDomain,
 } from '@irm/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Form, Input, Modal } from 'antd';
 import dayjs from 'dayjs';
 import { ArrowLeft, Cloud } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { usePreferences } from '../../app/preferences-context';
 import { errorMessage } from '../../shared/errors';
@@ -23,6 +29,7 @@ import {
 import { ProviderSyncPanel } from '../integrations/provider-sync-modal';
 import {
   type DomainComposerValues,
+  type DomainExtraKey,
   DomainPropertySheet,
 } from './components/domain-composer-parts';
 import type { DomainPreset } from './presets/domain-presets';
@@ -31,10 +38,20 @@ import { normalizeDomainDraft } from './utils/domain-metrics';
 export type DomainModalMode = 'manual' | CloudSyncProviderKey;
 
 function DomainModalBody({
+  value,
+  subscriptions,
+  accounts,
+  servers,
+  ips,
   mode,
   onModeChange,
   onClose,
 }: {
+  value?: Domain;
+  subscriptions?: Subscription[];
+  accounts?: Account[];
+  servers?: ServerHost[];
+  ips?: IpNode[];
   mode: DomainModalMode;
   onModeChange: (next: DomainModalMode) => void;
   onClose: () => void;
@@ -44,30 +61,46 @@ function DomainModalBody({
   const client = useQueryClient();
   const { message } = App.useApp();
 
-  const [presetKey, setPresetKey] = useState('');
+  const [presetKey, setPresetKey] = useState(() => value?.presetKey ?? '');
 
-  const accountsQuery = useQuery(accountsOptions);
-  const subscriptionsQuery = useQuery(subscriptionsOptions);
-  const serversQuery = useQuery(serversOptions);
-  const ipsQuery = useQuery(ipsOptions);
-  const integrationsQuery = useQuery(integrationsOptions);
+  const accountsQuery = useQuery({ ...accountsOptions, enabled: !accounts });
+  const subscriptionsQuery = useQuery({ ...subscriptionsOptions, enabled: !subscriptions });
+  const serversQuery = useQuery({ ...serversOptions, enabled: !servers });
+  const ipsQuery = useQuery({ ...ipsOptions, enabled: !ips });
+  const integrationsQuery = useQuery({ ...integrationsOptions, enabled: !value });
 
-  const activeAccounts = (accountsQuery.isSuccess ? accountsQuery.data.items : []).filter(a => !a.archived);
-  const activeSubscriptions = (subscriptionsQuery.isSuccess ? subscriptionsQuery.data.items : []).filter(s => !s.archived);
-  const activeServers = (serversQuery.isSuccess ? serversQuery.data.items : []).filter(s => !s.archived);
-  const activeIps = (ipsQuery.isSuccess ? ipsQuery.data.items : []).filter(ip => !ip.archived);
+  const rawAccounts = accounts ?? (accountsQuery.isSuccess ? accountsQuery.data.items : []);
+  const rawSubscriptions = subscriptions ?? (subscriptionsQuery.isSuccess ? subscriptionsQuery.data.items : []);
+  const rawServers = servers ?? (serversQuery.isSuccess ? serversQuery.data.items : []);
+  const rawIps = ips ?? (ipsQuery.isSuccess ? ipsQuery.data.items : []);
+
+  const activeAccounts = rawAccounts.filter(a => !a.archived || a.id === value?.registrarAccountId);
+  const activeSubscriptions = rawSubscriptions.filter(s => !s.archived || s.id === value?.subscriptionId);
+  const activeServers = rawServers.filter(s => !s.archived || Boolean(value?.serverIds.includes(s.id)));
+  const activeIps = rawIps.filter(ip => !ip.archived || Boolean(value?.ipIds.includes(ip.id)));
   const providerConnections = integrationsQuery.data?.items ?? [];
   const watchedAccountId = (Form.useWatch('registrarAccountId', form) as string | undefined) ?? '';
 
+  const initialOpenExtras = useMemo(() => {
+    const keys: DomainExtraKey[] = [];
+    if (!value) return keys;
+    if (value.serverIds.length > 0 || value.ipIds.length > 0) keys.push('topology');
+    if (value.icpStatus !== 'none' || value.icpNumber.trim()) keys.push('icp');
+    if (value.managementUrl.trim()) keys.push('consoleUrl');
+    if (value.tags.length > 0) keys.push('tags');
+    if (value.notes.trim()) keys.push('notes');
+    return keys;
+  }, [value]);
+
   const mutation = useMutation({
-    mutationFn: (input: DomainInput) => createDomain(input),
+    mutationFn: (input: DomainInput) => (value ? updateDomain(value.id, input) : createDomain(input)),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['domains'] });
       await client.invalidateQueries({ queryKey: ['servers'] });
       await client.invalidateQueries({ queryKey: ['ips'] });
       await client.invalidateQueries({ queryKey: ['subscriptions'] });
       await client.invalidateQueries({ queryKey: ['nav-counts'] });
-      void message.success(t('域名已添加'));
+      void message.success(t(value ? '域名已更新' : '域名已添加'));
       onClose();
     },
   });
@@ -77,6 +110,18 @@ function DomainModalBody({
     form.setFieldValue('presetKey', preset.key);
     const regName = locale === 'en-US' ? preset.registrar.en : preset.registrar.zh;
     const dnsName = locale === 'en-US' ? preset.dnsProvider.en : preset.dnsProvider.zh;
+    if (value) {
+      if (!String(form.getFieldValue('registrar') ?? '').trim()) {
+        form.setFieldValue('registrar', regName);
+      }
+      if (!String(form.getFieldValue('dnsProvider') ?? '').trim()) {
+        form.setFieldValue('dnsProvider', dnsName);
+      }
+      if (!String(form.getFieldValue('managementUrl') ?? '').trim() && preset.defaultManagementUrl) {
+        form.setFieldValue('managementUrl', preset.defaultManagementUrl);
+      }
+      return;
+    }
     form.setFieldsValue({
       registrar: regName,
       dnsProvider: dnsName,
@@ -86,37 +131,52 @@ function DomainModalBody({
     });
   };
 
-  const initialValues: DomainComposerValues = {
-    presetKey: '',
-    name: '',
-    registrar: '',
-    dnsProvider: '',
-    purpose: 'prod',
-    status: 'active',
-    billingMode: 'none',
-    expireDate: dayjs().add(1, 'year'),
-    autoRenew: true,
-    whoisPrivacy: true,
-    icpStatus: 'none',
-    icpNumber: '',
-    managementUrl: '',
-    subscriptionId: '',
-    registrarAccountId: '',
-    serverIds: [],
-    ipIds: [],
-    tags: [],
-    notes: '',
-    archived: false,
-    subName: '',
-    subAmount: 0,
-    subCurrency: 'USD',
-    subCycle: 'yearly',
-    subIntervalDays: 365,
-    subDueDate: dayjs().add(1, 'year'),
-    subRenewalMode: 'auto',
-    subIntention: 'normal',
-    subPaymentMethod: '',
-  };
+  const initialValues: DomainComposerValues = value
+    ? {
+        ...value,
+        billingMode: value.subscriptionId ? 'link' : 'none',
+        expireDate: value.expireDate ? dayjs(value.expireDate) : undefined,
+        subName: value.name,
+        subAmount: 0,
+        subCurrency: 'USD',
+        subCycle: 'yearly',
+        subIntervalDays: 365,
+        subDueDate: value.expireDate ? dayjs(value.expireDate) : dayjs().add(1, 'year'),
+        subRenewalMode: value.autoRenew ? 'auto' : 'manual',
+        subIntention: 'normal',
+        subPaymentMethod: '',
+      }
+    : {
+        presetKey: '',
+        name: '',
+        registrar: '',
+        dnsProvider: '',
+        purpose: 'prod',
+        status: 'active',
+        billingMode: 'none',
+        expireDate: dayjs().add(1, 'year'),
+        autoRenew: true,
+        whoisPrivacy: true,
+        icpStatus: 'none',
+        icpNumber: '',
+        managementUrl: '',
+        subscriptionId: '',
+        registrarAccountId: '',
+        serverIds: [],
+        ipIds: [],
+        tags: [],
+        notes: '',
+        archived: false,
+        subName: '',
+        subAmount: 0,
+        subCurrency: 'USD',
+        subCycle: 'yearly',
+        subIntervalDays: 365,
+        subDueDate: dayjs().add(1, 'year'),
+        subRenewalMode: 'auto',
+        subIntention: 'normal',
+        subPaymentMethod: '',
+      };
 
   const submit = (values: DomainComposerValues) => {
     const cleanName = normalizeDomainDraft(values.name) || values.name.trim();
@@ -163,7 +223,7 @@ function DomainModalBody({
       ipIds: values.ipIds ?? [],
       tags: values.tags ?? [],
       notes: (values.notes ?? '').trim(),
-      archived: false,
+      archived: value ? Boolean(values.archived) : false,
       createSubscription,
     });
   };
@@ -202,15 +262,18 @@ function DomainModalBody({
             accounts={activeAccounts}
             servers={activeServers}
             ips={activeIps}
-            providerConnections={providerConnections}
-            onOpenProviderSync={prov => onModeChange(prov)}
+            providerConnections={value ? undefined : providerConnections}
+            onOpenProviderSync={value ? undefined : prov => onModeChange(prov)}
+            isEditing={Boolean(value)}
+            initialAccountId={value?.registrarAccountId}
+            initialOpenExtras={initialOpenExtras}
             submitting={mutation.isPending}
             onCancel={onClose}
           />
         </Form>
       </div>
 
-      {mode !== 'manual' && (
+      {!value && mode !== 'manual' && (
         <ProviderSyncPanel
           key={mode}
           active
@@ -226,23 +289,40 @@ function DomainModalBody({
   );
 }
 
-export function DomainModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function DomainModal({
+  open,
+  value,
+  subscriptions,
+  accounts,
+  servers,
+  ips,
+  onClose,
+}: {
+  open: boolean;
+  value?: Domain;
+  subscriptions?: Subscription[];
+  accounts?: Account[];
+  servers?: ServerHost[];
+  ips?: IpNode[];
+  onClose: () => void;
+}) {
   const { t, locale } = usePreferences();
   const [mode, setMode] = useState<DomainModalMode>('manual');
+  const effectiveMode: DomainModalMode = value ? 'manual' : mode;
 
   const handleClose = () => {
     setMode('manual');
     onClose();
   };
 
-  const activeBrief = mode !== 'manual' ? PROVIDER_BRIEFS[mode] : undefined;
+  const activeBrief = effectiveMode !== 'manual' ? PROVIDER_BRIEFS[effectiveMode] : undefined;
   const providerTitle = activeBrief
     ? (locale === 'en-US' ? activeBrief.en : activeBrief.zh)
     : '';
 
   return (
     <Modal
-      title={mode !== 'manual'
+      title={effectiveMode !== 'manual'
         ? (
             <div className="cf-modal-title">
               <span className="cf-brand-badge" aria-hidden="true">
@@ -264,16 +344,28 @@ export function DomainModal({ open, onClose }: { open: boolean; onClose: () => v
               </div>
             </div>
           )
-        : t('新建域名')}
+        : t(value ? '编辑域名' : '新建域名')}
       open={open}
       onCancel={handleClose}
       footer={null}
-      width={mode !== 'manual' ? 660 : 616}
+      width={effectiveMode !== 'manual' ? 660 : 616}
       centered
       destroyOnHidden
-      className={mode !== 'manual' ? 'cf-sync-modal' : 'subscription-sheet-modal'}
+      className={effectiveMode !== 'manual' ? 'cf-sync-modal' : 'subscription-sheet-modal'}
     >
-      {open && <DomainModalBody mode={mode} onModeChange={setMode} onClose={handleClose} />}
+      {open && (
+        <DomainModalBody
+          key={value?.id ?? 'new'}
+          value={value}
+          subscriptions={subscriptions}
+          accounts={accounts}
+          servers={servers}
+          ips={ips}
+          mode={effectiveMode}
+          onModeChange={setMode}
+          onClose={handleClose}
+        />
+      )}
     </Modal>
   );
 }

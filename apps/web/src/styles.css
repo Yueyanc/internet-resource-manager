@@ -3442,19 +3442,6 @@
     letter-spacing: 0;
   }
 
-  .subscription-sheet-drawer .ant-drawer-header {
-    border-bottom: 0;
-    padding: 20px 24px 8px;
-  }
-  .subscription-sheet-drawer .ant-drawer-title {
-    font-size: 15px;
-    font-weight: 550;
-    color: var(--muted);
-  }
-  .subscription-sheet-drawer .ant-drawer-body {
-    padding: 8px 24px 24px;
-  }
-
   .sub-sheet {
     display: flex;
     flex-direction: column;

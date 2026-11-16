@@ -219,7 +219,7 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 		api.Group(func(private chi.Router) {
 			private.Use(authentication.require)
 			domainRoutes(private, store, cfg.domainLookuper)
-			integrationRoutes(private, store, cfg.cloudflareClient, cfg.cloudRegistry, cfg.domainLookuper)
+			integrationRoutes(private, store, cfg.cloudRegistry, cfg.domainLookuper)
 			subscriptionRoutes(private, store)
 			accountRoutes(private, store)
 			vaultRoutes(private, store)

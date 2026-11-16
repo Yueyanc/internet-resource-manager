@@ -57,6 +57,7 @@ export function WorkspaceLayout() {
 
     setMobile(false);
   };
+  const isDetailRoute = location.pathname.startsWith('/servers/') && location.pathname !== '/servers/';
   const healthLabel = t(health.isSuccess ? '服务已连接' : health.isPending ? '连接中' : '服务不可用');
   return (
     <VaultProvider activeRoute={location.pathname === '/accounts'}>
@@ -64,7 +65,9 @@ export function WorkspaceLayout() {
         <div className={`app-shell ${collapsed ? 'is-collapsed' : 'is-expanded'}`}>
           <header className="topbar">
             <Button type="text" aria-label={t('打开导航')} className="mobile-menu-button" icon={<Menu size={19} />} onClick={() => setMobile(true)} />
-            <Input className="workspace-search" aria-label={t(searchLabel)} prefix={<Search size={16} />} placeholder={t('搜索')} value={searches[key]} onChange={event => setSearches(values => ({ ...values, [key]: event.target.value }))} allowClear />
+            {!isDetailRoute && (
+              <Input className="workspace-search" aria-label={t(searchLabel)} prefix={<Search size={16} />} placeholder={t('搜索')} value={searches[key]} onChange={event => setSearches(values => ({ ...values, [key]: event.target.value }))} allowClear />
+            )}
             <div className="header-tools">
               <Tooltip title={healthLabel}><span role="status" aria-label={healthLabel} className={`service-status ${health.isError ? 'unavailable' : health.isPending ? 'pending' : ''}`}><ShieldCheck size={15} /></span></Tooltip>
               <LanguageSwitcher />
@@ -76,10 +79,8 @@ export function WorkspaceLayout() {
                     <strong>{username}</strong>
                     <span>{t('管理员')}</span>
                   </div>
-                ), disabled: true }, { type: 'divider' }, { key: 'preferences', label: t('汇率与偏好设置'), icon: <Settings2 size={15} /> }, { key: 'logout', label: t('退出登录'), icon: <LogOut size={15} />, disabled: signOut.isPending }], onClick: ({ key: action }) => {
+                ), disabled: true }, { type: 'divider' }, { key: 'logout', label: t('退出登录'), icon: <LogOut size={15} />, disabled: signOut.isPending }], onClick: ({ key: action }) => {
                   if (action === 'logout') signOut.mutate();
-
-                  if (action === 'preferences') setPreferences(true);
                 } }}
               >
                 <Button className="profile-button" type="text" aria-label={t('当前用户')} title={username}><Avatar size={30}>{username.charAt(0).toUpperCase()}</Avatar></Button>

@@ -2,7 +2,7 @@ import { countsOptions } from '@irm/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from '@tanstack/react-router';
 import { Button, Dropdown, Menu, Tooltip } from 'antd';
-import { CircleUserRound, CreditCard, Globe2, Network, PanelLeftClose, PanelLeftOpen, Plus, Server, Smartphone } from 'lucide-react';
+import { CircleUserRound, CreditCard, Globe2, Network, PanelLeftClose, PanelLeftOpen, Plus, Server } from 'lucide-react';
 import { useState } from 'react';
 
 import { usePreferences } from '../app/preferences-context';
@@ -30,9 +30,6 @@ export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; o
   const domains = { key: '/domains', icon: <Globe2 size={18} />, label: <Link to="/domains" className="nav-menu-link" aria-label={t('域名')} aria-current={activeNavKey === '/domains' ? 'page' : undefined}>{label(t('域名'), counts.isSuccess ? counts.data.domains : undefined)}</Link> };
   const ips = { key: '/ips', icon: <Network size={18} />, label: <Link to="/ips" className="nav-menu-link" aria-label={t('IP 与节点')} aria-current={activeNavKey === '/ips' ? 'page' : undefined}>{label(t('IP 与节点'), counts.isSuccess ? counts.data.ips : undefined)}</Link> };
   const servers = { key: '/servers', icon: <Server size={18} />, label: <Link to="/servers" className="nav-menu-link" aria-label={t('服务器')} aria-current={activeNavKey === '/servers' ? 'page' : undefined}>{label(t('服务器'), counts.isSuccess ? counts.data.servers : undefined)}</Link> };
-  const planned = [
-    { key: 'telecom', icon: <Smartphone size={17} />, label: t('手机卡 / eSIM'), disabled: true },
-  ];
   return (
     <>
       <div className="sidebar-brand">
@@ -65,7 +62,7 @@ export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; o
           onOpenChange={keys => !collapsed && setOpenKeys(keys)}
           onClick={onNavigate}
           items={[
-            { key: 'identity', label: t('订阅与身份'), icon: <CircleUserRound size={18} />, children: [subscriptions, accounts, ...planned] },
+            { key: 'identity', label: t('订阅与身份'), icon: <CircleUserRound size={18} />, children: [subscriptions, accounts] },
             { key: 'infra', label: t('基础设施与网络'), icon: <Network size={18} />, children: [servers, domains, ips] },
           ]}
         />

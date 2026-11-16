@@ -211,23 +211,23 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 		t.Fatalf("unexpected lookup preview: %+v", preview)
 	}
 
-	// 3. Test Cloudflare token template endpoint.
-	tplRec := doReq(http.MethodGet, "/api/v1/integrations/cloudflare/template", "")
+	// 3. Test unified provider catalog includes Cloudflare read-only token template link.
+	tplRec := doReq(http.MethodGet, "/api/v1/integrations/providers", "")
 	if tplRec.Code != http.StatusOK {
-		t.Fatalf("template = %d: %s", tplRec.Code, tplRec.Body)
+		t.Fatalf("providers = %d: %s", tplRec.Code, tplRec.Body)
 	}
 	if !strings.Contains(tplRec.Body.String(), "dash.cloudflare.com/profile/api-tokens") {
-		t.Fatalf("missing template url: %s", tplRec.Body.String())
+		t.Fatalf("missing cloudflare template url in catalog: %s", tplRec.Body.String())
 	}
 
-	// 4. Reject invalid Cloudflare token.
-	badConn := doReq(http.MethodPost, "/api/v1/integrations/cloudflare", `{"apiToken":"wrong_token_value_123456"}`)
+	// 4. Reject invalid Cloudflare token via unified connect endpoint.
+	badConn := doReq(http.MethodPost, "/api/v1/integrations/connect", `{"provider":"cloudflare","credentials":{"apiToken":"wrong_token_value_123456"}}`)
 	if badConn.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 on invalid token, got %d: %s", badConn.Code, badConn.Body)
 	}
 
 	// 5. Connect valid Cloudflare token with immediate sync.
-	goodConn := doReq(http.MethodPost, "/api/v1/integrations/cloudflare", `{"apiToken":"`+rawToken+`","label":"主账号 CF"}`)
+	goodConn := doReq(http.MethodPost, "/api/v1/integrations/connect", `{"provider":"cloudflare","credentials":{"apiToken":"`+rawToken+`"},"label":"主账号 CF"}`)
 	if goodConn.Code != http.StatusCreated {
 		t.Fatalf("connect cloudflare = %d: %s", goodConn.Code, goodConn.Body)
 	}

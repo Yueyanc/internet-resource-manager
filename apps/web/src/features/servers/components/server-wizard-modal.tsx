@@ -1,14 +1,18 @@
 import {
+  type Account,
   accountsOptions,
   createServerEnrollToken,
+  type Domain,
   domainsOptions,
   getServerEnrollTokenStatus,
   importServerSnapshot,
   integrationsOptions,
+  type IpNode,
   ipsOptions,
   saveServer,
   type ServerHost,
   type ServerInput,
+  type Subscription,
   type SubscriptionInput,
   subscriptionsOptions,
 } from '@irm/api-client';
@@ -37,7 +41,7 @@ import {
   Sparkles,
   Terminal,
 } from 'lucide-react';
-import { type CSSProperties, useRef, useState } from 'react';
+import { type CSSProperties, useMemo, useRef, useState } from 'react';
 
 import { usePreferences } from '../../../app/preferences-context';
 import { errorMessage } from '../../../shared/errors';
@@ -67,11 +71,12 @@ import {
 } from '../utils/server-metrics';
 import {
   type ServerBillingMode,
+  type ServerExtraKey,
   ServerPropertySheet,
 } from './server-composer-parts';
 import { ServerMark } from './server-mark';
 
-type ManualFormValues = Omit<ServerInput, 'presetKey' | 'expireDate' | 'archived' | 'createSubscription'> & {
+type ManualFormValues = Omit<ServerInput, 'expireDate' | 'createSubscription'> & {
   smartEndpoint: string;
   billingMode: ServerBillingMode;
   expireDate?: Dayjs;
@@ -94,11 +99,21 @@ function nextCycleDayjs(cycle: 'monthly' | 'quarterly' | 'yearly'): Dayjs {
 }
 
 function ServerWizardBody({
+  value,
   targetServer,
+  subscriptions,
+  accounts,
+  domains,
+  ips,
   onClose,
   onEditEnrolled,
 }: {
+  value?: ServerHost;
   targetServer?: ServerHost;
+  subscriptions?: Subscription[];
+  accounts?: Account[];
+  domains?: Domain[];
+  ips?: IpNode[];
   onClose: () => void;
   onEditEnrolled?: (server: ServerHost) => void;
 }) {
@@ -114,7 +129,7 @@ function ServerWizardBody({
   const [dockerEnabled, setDockerEnabled] = useState(false);
   const [agentNameHint, setAgentNameHint] = useState('');
   const [committedNameHint, setCommittedNameHint] = useState('');
-  const [presetKey, setPresetKey] = useState(targetServer?.presetKey ?? '');
+  const [presetKey, setPresetKey] = useState(value?.presetKey ?? targetServer?.presetKey ?? '');
   const [planId, setPlanId] = useState('');
   const [tokenNonce, setTokenNonce] = useState(0);
   const [snapshotText, setSnapshotText] = useState('');
@@ -128,19 +143,33 @@ function ServerWizardBody({
   const [importedServer, setImportedServer] = useState<ServerHost | null>(null);
   const invalidatedRef = useRef<string>('');
 
-  const effectiveMode = targetServer ? 'agent' : entryMode;
+  const effectiveMode = value ? 'manual' : targetServer ? 'agent' : entryMode;
 
-  const subsQuery = useQuery({ ...subscriptionsOptions, enabled: effectiveMode === 'manual' });
-  const accountsQuery = useQuery({ ...accountsOptions, enabled: !targetServer });
-  const domainsQuery = useQuery({ ...domainsOptions, enabled: effectiveMode === 'manual' });
-  const ipsQuery = useQuery({ ...ipsOptions, enabled: effectiveMode === 'manual' });
-  const integrationsQuery = useQuery({ ...integrationsOptions, enabled: !targetServer });
+  const subsQuery = useQuery({ ...subscriptionsOptions, enabled: effectiveMode === 'manual' && !subscriptions });
+  const accountsQuery = useQuery({ ...accountsOptions, enabled: !targetServer && !accounts });
+  const domainsQuery = useQuery({ ...domainsOptions, enabled: effectiveMode === 'manual' && !domains });
+  const ipsQuery = useQuery({ ...ipsOptions, enabled: effectiveMode === 'manual' && !ips });
+  const integrationsQuery = useQuery({ ...integrationsOptions, enabled: !targetServer && !value });
 
-  const activeSubscriptions = subsQuery.isSuccess ? subsQuery.data.items.filter(item => !item.archived) : [];
-  const activeAccounts = accountsQuery.isSuccess ? accountsQuery.data.items.filter(item => !item.archived) : [];
-  const allDomains = domainsQuery.isSuccess ? domainsQuery.data.items : [];
-  const activeIps = ipsQuery.isSuccess ? ipsQuery.data.items.filter(item => !item.archived) : [];
+  const rawSubscriptions = subscriptions ?? (subsQuery.isSuccess ? subsQuery.data.items : []);
+  const rawAccounts = accounts ?? (accountsQuery.isSuccess ? accountsQuery.data.items : []);
+  const allDomains = domains ?? (domainsQuery.isSuccess ? domainsQuery.data.items : []);
+  const rawIps = ips ?? (ipsQuery.isSuccess ? ipsQuery.data.items : []);
+
+  const activeSubscriptions = rawSubscriptions.filter(item => !item.archived || item.id === value?.subscriptionId);
+  const activeAccounts = rawAccounts.filter(item => !item.archived || item.id === value?.accountId);
+  const activeIps = rawIps.filter(item => !item.archived || Boolean(value?.ipIds.includes(item.id)));
   const providerConnections = integrationsQuery.isSuccess ? integrationsQuery.data.items : [];
+
+  const initialOpenExtras = useMemo(() => {
+    const keys: ServerExtraKey[] = [];
+    if (!value) return keys;
+    if (value.ipv6.trim() || value.privateIp.trim() || value.hostname.trim()) keys.push('network');
+    if (value.consoleUrl.trim() || value.domainIds.length > 0 || value.ipIds.length > 0) keys.push('consoleUrl');
+    if (value.tags.length > 0) keys.push('tags');
+    if (value.notes.trim()) keys.push('notes');
+    return keys;
+  }, [value]);
 
   const needEnrollToken = effectiveMode === 'agent'
     && !importedServer
@@ -207,13 +236,13 @@ function ServerWizardBody({
   });
 
   const manualMutation = useMutation({
-    mutationFn: (input: ServerInput) => saveServer(input),
+    mutationFn: (input: ServerInput) => saveServer(input, value?.id),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['servers'] });
       await client.invalidateQueries({ queryKey: ['subscriptions'] });
       await client.invalidateQueries({ queryKey: ['ips'] });
       await client.invalidateQueries({ queryKey: ['nav-counts'] });
-      void message.success(t('服务器已添加'));
+      void message.success(t(value ? '服务器已更新' : '服务器已添加'));
       onClose();
     },
   });
@@ -232,8 +261,16 @@ function ServerWizardBody({
 
   const applyManualPreset = (preset: ServerPreset) => {
     setPresetKey(preset.key);
-    const firstPlan = preset.plans?.[0];
+    form.setFieldValue('presetKey', preset.key);
     const providerName = locale === 'en-US' ? preset.provider.en : preset.provider.zh;
+    if (value) {
+      if (!String(form.getFieldValue('provider') ?? '').trim()) {
+        form.setFieldValue('provider', providerName);
+      }
+      return;
+    }
+
+    const firstPlan = preset.plans?.[0];
     const currentName = String(form.getFieldValue('name') ?? '').trim();
     const defaultName = firstPlan?.nameHint ?? `${preset.key.toUpperCase()}-${preset.region}`;
     setPlanId(firstPlan?.id ?? '');
@@ -272,10 +309,26 @@ function ServerWizardBody({
   const clearManualPreset = () => {
     setPresetKey('');
     setPlanId('');
+    form.setFieldValue('presetKey', '');
   };
 
   const applyPlan = (plan: ServerPresetPlan) => {
     setPlanId(plan.id);
+    if (value) {
+      form.setFieldsValue({
+        region: plan.region,
+        datacenter: plan.datacenter ?? '',
+        cpuCores: plan.cpuCores,
+        memoryMb: plan.memoryMb,
+        diskGb: plan.diskGb,
+        diskType: plan.diskType ?? 'nvme',
+        bandwidthMbps: plan.bandwidthMbps,
+        trafficGb: plan.trafficGb,
+        trafficRule: plan.trafficRule ?? 'both',
+      });
+      return;
+    }
+
     const hasPrice = Boolean(plan.suggestedPrice);
     form.setFieldsValue({
       name: plan.nameHint,
@@ -311,18 +364,23 @@ function ServerWizardBody({
     const ipv6 = (values.ipv6 ?? '').trim() || smart.ipv6;
     const privateIp = (values.privateIp ?? '').trim() || smart.privateIp;
     const hostname = (values.hostname ?? '').trim() || smart.hostname;
-    const sshUser = (values.sshUser ?? '').trim() || extracted.sshUser || 'root';
-    const sshPort = values.sshPort || extracted.sshPort || 22;
+    const sshUser = value
+      ? (values.sshUser ?? 'root').trim()
+      : (values.sshUser ?? '').trim() || extracted.sshUser || 'root';
+    const sshPort = value
+      ? (values.sshPort ?? 22)
+      : (values.sshPort || extracted.sshPort || 22);
+    const resolvedPresetKey = values.presetKey ?? presetKey;
 
     const createSubscription: SubscriptionInput | undefined = values.billingMode === 'create'
       ? {
-          presetKey,
+          presetKey: resolvedPresetKey,
           name: (values.subName ?? '').trim() || values.name.trim(),
           amountMinor: Math.round((values.subAmount ?? 0) * 100),
           currency: values.subCurrency,
           cycle: values.subCycle,
           intervalDays: values.subCycle === 'custom' ? (values.subIntervalDays || 30) : 0,
-          dueDate: (values.subDueDate ?? dayjs().add(1, 'year')).format('YYYY-MM-DD'),
+          dueDate: (values.subDueDate ?? (value ? dayjs() : dayjs().add(1, 'year'))).format('YYYY-MM-DD'),
           category: 'cloud',
           renewalMode: values.subRenewalMode,
           intention: values.subIntention,
@@ -337,7 +395,7 @@ function ServerWizardBody({
       : undefined;
 
     manualMutation.mutate({
-      presetKey,
+      presetKey: resolvedPresetKey,
       name: values.name.trim(),
       hostname,
       provider: (values.provider ?? '').trim(),
@@ -371,7 +429,7 @@ function ServerWizardBody({
       ipIds: values.ipIds ?? [],
       tags: values.tags ?? [],
       notes: (values.notes ?? '').trim(),
-      archived: false,
+      archived: value ? Boolean(values.archived) : false,
       createSubscription,
     });
   };
@@ -389,7 +447,7 @@ function ServerWizardBody({
 
   return (
     <>
-      {!targetServer && !enrolledServer && (
+      {!value && !targetServer && !enrolledServer && (
         <div className="server-sheet-mode-bar">
           <div className="sub-sheet-segmented" role="radiogroup">
             <button
@@ -838,52 +896,72 @@ function ServerWizardBody({
             form={form}
             layout="vertical"
             requiredMark={false}
-            initialValues={{
-              name: '',
-              smartEndpoint: '',
-              hostname: '',
-              provider: '',
-              kind: 'vps',
-              status: 'active',
-              region: 'JP',
-              datacenter: '',
-              os: 'Debian 12',
-              arch: 'amd64',
-              cpuCores: 2,
-              memoryMb: 4096,
-              diskGb: 80,
-              diskType: 'nvme',
-              bandwidthMbps: 1000,
-              trafficGb: 2048,
-              trafficRule: 'both',
-              trafficResetDay: 1,
-              ipv4: '',
-              ipv6: '',
-              privateIp: '',
-              portNote: '',
-              sshPort: 22,
-              sshUser: 'root',
-              consoleUrl: '',
-              billingMode: 'none',
-              subscriptionId: '',
-              accountId: '',
-              domainIds: [],
-              ipIds: [],
-              tags: [],
-              notes: '',
-              subName: '',
-              subAmount: 0,
-              subCurrency: 'USD',
-              subCycle: 'yearly',
-              subIntervalDays: 30,
-              subDueDate: dayjs().add(1, 'year'),
-              subRenewalMode: 'manual',
-              subIntention: 'normal',
-              subPaymentMethod: '',
-            }}
+            initialValues={value
+              ? {
+                  ...value,
+                  smartEndpoint: '',
+                  billingMode: value.subscriptionId ? 'link' : 'none',
+                  expireDate: value.expireDate ? dayjs(value.expireDate) : undefined,
+                  subName: value.name,
+                  subAmount: 0,
+                  subCurrency: 'USD',
+                  subCycle: 'yearly',
+                  subIntervalDays: 30,
+                  subDueDate: dayjs().add(1, 'year'),
+                  subRenewalMode: 'manual',
+                  subIntention: 'normal',
+                  subPaymentMethod: '',
+                }
+              : {
+                  presetKey: '',
+                  name: '',
+                  smartEndpoint: '',
+                  hostname: '',
+                  provider: '',
+                  kind: 'vps',
+                  status: 'active',
+                  region: 'JP',
+                  datacenter: '',
+                  os: 'Debian 12',
+                  arch: 'amd64',
+                  cpuCores: 2,
+                  memoryMb: 4096,
+                  diskGb: 80,
+                  diskType: 'nvme',
+                  bandwidthMbps: 1000,
+                  trafficGb: 2048,
+                  trafficRule: 'both',
+                  trafficResetDay: 1,
+                  ipv4: '',
+                  ipv6: '',
+                  privateIp: '',
+                  portNote: '',
+                  sshPort: 22,
+                  sshUser: 'root',
+                  consoleUrl: '',
+                  billingMode: 'none',
+                  subscriptionId: '',
+                  accountId: '',
+                  domainIds: [],
+                  ipIds: [],
+                  tags: [],
+                  notes: '',
+                  archived: false,
+                  subName: '',
+                  subAmount: 0,
+                  subCurrency: 'USD',
+                  subCycle: 'yearly',
+                  subIntervalDays: 30,
+                  subDueDate: dayjs().add(1, 'year'),
+                  subRenewalMode: 'manual',
+                  subIntention: 'normal',
+                  subPaymentMethod: '',
+                }}
             onFinish={submitManual}
             disabled={manualMutation.isPending}
           >
+            <Form.Item name="presetKey" hidden><Input /></Form.Item>
+
             <ServerPropertySheet
               form={form}
               presetKey={presetKey}
@@ -895,11 +973,16 @@ function ServerWizardBody({
               accounts={activeAccounts}
               domains={allDomains}
               ips={activeIps}
-              providerConnections={providerConnections}
-              onOpenProviderSync={(prov) => {
-                setSyncProvider(prov);
-                setEntryMode('sync');
-              }}
+              providerConnections={value ? undefined : providerConnections}
+              onOpenProviderSync={value
+                ? undefined
+                : (prov) => {
+                    setSyncProvider(prov);
+                    setEntryMode('sync');
+                  }}
+              isEditing={Boolean(value)}
+              initialAccountId={value?.accountId}
+              initialOpenExtras={initialOpenExtras}
               submitting={manualMutation.isPending}
               onCancel={onClose}
             />
@@ -907,7 +990,7 @@ function ServerWizardBody({
         </>
       )}
 
-      {!enrolledServer && effectiveMode === 'sync' && (
+      {!value && !enrolledServer && effectiveMode === 'sync' && (
         <div className="pt-1">
           <ProviderSyncPanel
             key={syncProvider ?? 'all'}
@@ -927,23 +1010,38 @@ function ServerWizardBody({
 
 export function ServerWizardModal({
   open,
+  value,
   targetServer,
+  subscriptions,
+  accounts,
+  domains,
+  ips,
   onClose,
   onEditEnrolled,
 }: {
   open: boolean;
+  value?: ServerHost;
   targetServer?: ServerHost;
+  subscriptions?: Subscription[];
+  accounts?: Account[];
+  domains?: Domain[];
+  ips?: IpNode[];
   onClose: () => void;
   onEditEnrolled?: (server: ServerHost) => void;
 }) {
   const { t } = usePreferences();
+  const title = value
+    ? t('编辑服务器')
+    : targetServer
+      ? t('接入监控探针 · {name}', { name: targetServer.name })
+      : t('新建服务器');
 
   return (
     <Modal
       open={open}
-      title={targetServer ? t('接入监控探针 · {name}', { name: targetServer.name }) : t('新建服务器')}
+      title={title}
       onCancel={onClose}
-      width={636}
+      width={value ? 616 : 636}
       centered
       destroyOnHidden
       footer={null}
@@ -951,7 +1049,13 @@ export function ServerWizardModal({
     >
       {open && (
         <ServerWizardBody
+          key={value?.id ?? (targetServer ? `agent-${targetServer.id}` : 'new')}
+          value={value}
           targetServer={targetServer}
+          subscriptions={subscriptions}
+          accounts={accounts}
+          domains={domains}
+          ips={ips}
           onClose={onClose}
           onEditEnrolled={onEditEnrolled}
         />

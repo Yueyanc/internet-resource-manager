@@ -2,7 +2,7 @@ import type { IpNode, IpUnlockService } from '@irm/api-client';
 import { Cloud, Home, Network, Route, Server, Wifi } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
-import { ipBrandIconUrl } from '../presets/ip-brand-icons';
+import { brandIconUrl } from '../../../shared/brand-icons';
 import type { IpPreset } from '../presets/ip-presets';
 import { resolveIpPreset } from '../presets/ip-presets';
 import { ipCategoryMeta, ipUnlockMeta } from '../utils/ip-metrics';
@@ -26,7 +26,7 @@ export function IpMark({
   size?: 'sm' | 'md' | 'lg';
 }) {
   const matched = explicitPreset ?? (value ? resolveIpPreset(value) : undefined);
-  const svgUrl = matched ? ipBrandIconUrl(matched.iconKey) : undefined;
+  const svgUrl = matched ? brandIconUrl(matched.iconKey) : undefined;
   const categoryKey = value?.category ?? matched?.category ?? 'cloud_vps';
   const accentColor = matched?.color ?? ipCategoryMeta[categoryKey].color;
   const style = { '--mark-color': accentColor } as CSSProperties;
@@ -53,7 +53,7 @@ export function IpMark({
 
 export function UnlockServiceIcon({ service }: { service: IpUnlockService }) {
   const meta = ipUnlockMeta[service];
-  const svgUrl = ipBrandIconUrl(meta.iconKey);
+  const svgUrl = brandIconUrl(meta.iconKey);
   const style = { '--mark-color': meta.color } as CSSProperties;
 
   if (svgUrl) {

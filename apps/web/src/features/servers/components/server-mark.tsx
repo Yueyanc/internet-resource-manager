@@ -2,7 +2,7 @@ import type { ServerHost } from '@irm/api-client';
 import { Cpu, HardDrive, Home, Network, Server } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
-import { serverBrandIconUrl } from '../presets/server-brand-icons';
+import { brandIconUrl } from '../../../shared/brand-icons';
 import type { ServerPreset } from '../presets/server-presets';
 import { resolveServerPreset } from '../presets/server-presets';
 import { serverKindMeta } from '../utils/server-metrics';
@@ -25,7 +25,7 @@ export function ServerMark({
   size?: 'sm' | 'md' | 'lg';
 }) {
   const matched = explicitPreset ?? (value ? resolveServerPreset(value) : undefined);
-  const svgUrl = matched ? serverBrandIconUrl(matched.iconKey) : undefined;
+  const svgUrl = matched ? brandIconUrl(matched.iconKey) : undefined;
   const kindKey = value?.kind ?? matched?.kind ?? 'vps';
   const accentColor = matched?.color ?? serverKindMeta[kindKey].color;
   const style = { '--mark-color': accentColor } as CSSProperties;

@@ -122,41 +122,12 @@ func (s *Store) CreateProviderConnection(
 	})
 }
 
-func (s *Store) CreateCloudflareConnection(
-	ctx context.Context,
-	label string,
-	accountID string,
-	apiToken string,
-	verify cloudsync.VerifySummary,
-) (queries.ProviderConnection, error) {
-	return s.CreateProviderConnection(
-		ctx,
-		"cloudflare",
-		label,
-		"Cloudflare",
-		accountID,
-		cloudsync.MaskSecret(apiToken),
-		cloudsync.Credentials{"apiToken": apiToken},
-		verify.Scopes,
-		verify.AccountNames,
-		SyncStats{ZonesTotal: verify.ZonesCount},
-	)
-}
-
 func (s *Store) DecryptProviderCredentials(conn queries.ProviderConnection) (cloudsync.Credentials, error) {
 	var creds cloudsync.Credentials
 	if err := s.keyRing.OpenJSON(conn.ID+":"+conn.Provider, conn.SecretCiphertext, conn.SecretNonce, &creds); err != nil {
 		return nil, err
 	}
 	return creds, nil
-}
-
-func (s *Store) DecryptCloudflareToken(conn queries.ProviderConnection) (string, error) {
-	creds, err := s.DecryptProviderCredentials(conn)
-	if err != nil {
-		return "", err
-	}
-	return creds.Get("apiToken"), nil
 }
 
 func (s *Store) RecordProviderSyncError(ctx context.Context, conn queries.ProviderConnection, syncErr error) (queries.ProviderConnection, error) {
@@ -267,23 +238,6 @@ func mergeTagsLimited(existingJSON string, incoming []string) string {
 	}
 	raw, _ := json.Marshal(tags)
 	return string(raw)
-}
-
-func (s *Store) ReconcileCloudflareSnapshot(
-	ctx context.Context,
-	conn queries.ProviderConnection,
-	snap cloudsync.Snapshot,
-	domainLookuper domainname.Lookuper,
-) (queries.ProviderConnection, SyncStats, error) {
-	return s.ReconcileUnifiedSnapshot(ctx, conn, cloudsync.UnifiedSnapshot{
-		Provider:     "cloudflare",
-		AccountNames: snap.AccountNames,
-		Scopes:       snap.Scopes,
-		Zones:        snap.Zones,
-		Registrar:    snap.Registrar,
-		Tunnels:      snap.Tunnels,
-		Pages:        snap.Pages,
-	}, domainLookuper)
 }
 
 func (s *Store) ReconcileUnifiedSnapshot(

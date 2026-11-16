@@ -21,12 +21,12 @@ import { QueryError } from '../../shared/feedback';
 import { AccountBreakdownCard } from './components/account-breakdown-card';
 import { AccountCard } from './components/account-card';
 import { AccountDetails } from './components/account-details';
-import { AccountDrawer } from './components/account-drawer';
 import { AccountFilters } from './components/account-filters';
 import { AccountHubsCard } from './components/account-hubs-card';
 import { AccountHygieneCard } from './components/account-hygiene-card';
 import { AccountSummaryStrip } from './components/account-summary-strip';
 import { AccountTable } from './components/account-table';
+import { AccountWizardModal } from './components/account-wizard-modal';
 import {
   accountDisplayTitle,
   checkinRemaining,
@@ -455,7 +455,7 @@ export function AccountsPage() {
       )}
 
       {editing && (
-        <AccountDrawer
+        <AccountWizardModal
           key={editing.id}
           open
           value={editing}
