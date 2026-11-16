@@ -23,10 +23,10 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: `pnpm --filter @irm/web exec vite --host 127.0.0.1 --port ${webPort} --strictPort`,
+      command: `pnpm --filter @irm/web build && pnpm --filter @irm/web exec vite preview --host 127.0.0.1 --port ${webPort} --strictPort`,
       url: `http://127.0.0.1:${webPort}`,
       env: { IRM_API_TARGET: `http://127.0.0.1:${apiPort}` },
-      timeout: 60_000,
+      timeout: 90_000,
     },
   ],
 });
