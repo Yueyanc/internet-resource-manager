@@ -99,8 +99,8 @@ test('create subscription with separated searchable service & billing account dr
   await subDrawer.locator('.detail-related-item').filter({ hasText: 'Apple 账户' }).click();
   await expect(page).toHaveURL(/\/accounts\?detail=/);
   const accDrawer = page.getByRole('dialog', { name: '账号详情' });
-  await expect(accDrawer.locator('.detail-related-item').filter({ hasText: 'ChatGPT Plus' })).toContainText('代扣渠道');
-  await accDrawer.locator('.detail-related-item').filter({ hasText: 'ChatGPT Plus' }).click();
+  await expect(accDrawer.locator('.reverse-row-link').filter({ hasText: 'ChatGPT Plus' })).toContainText('代扣渠道');
+  await accDrawer.locator('.reverse-row-link').filter({ hasText: 'ChatGPT Plus' }).click();
   await expect(page).toHaveURL(/\/subscriptions\?detail=/);
   await page.getByRole('dialog', { name: '订阅详情' }).getByRole('button', { name: /Close|关闭/ }).first().click();
 

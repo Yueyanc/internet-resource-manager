@@ -24,6 +24,10 @@ type handlerConfig struct {
 	domainLookuper   domainname.Lookuper
 	cloudflareClient cloudsync.CloudflareClient
 	cloudRegistry    *cloudsync.Registry
+	fxFetcher        FXFetcher
+	notifyHTTPClient *http.Client
+	telegramBaseURL  string
+	autoRunner       *AutomationRunner
 	agentBinDir      string
 	allowedOrigins   []string
 	trustProxy       bool
@@ -89,6 +93,33 @@ func WithCloudSyncRegistry(reg *cloudsync.Registry) Option {
 	}
 }
 
+func WithFXFetcher(fetcher FXFetcher) Option {
+	return func(cfg *handlerConfig) {
+		if fetcher != nil {
+			cfg.fxFetcher = fetcher
+		}
+	}
+}
+
+func WithNotificationClient(client *http.Client, telegramBaseURL string) Option {
+	return func(cfg *handlerConfig) {
+		if client != nil {
+			cfg.notifyHTTPClient = client
+		}
+		if strings.TrimSpace(telegramBaseURL) != "" {
+			cfg.telegramBaseURL = strings.TrimSpace(telegramBaseURL)
+		}
+	}
+}
+
+func WithAutomationRunner(runner *AutomationRunner) Option {
+	return func(cfg *handlerConfig) {
+		if runner != nil {
+			cfg.autoRunner = runner
+		}
+	}
+}
+
 func WithAgentBinaryDir(dir string) Option {
 	return func(cfg *handlerConfig) {
 		cfg.agentBinDir = strings.TrimSpace(dir)
@@ -145,6 +176,7 @@ func buildHandlerConfig(opts ...Option) handlerConfig {
 		ipProber:         ipaddr.NewDefaultProber(),
 		domainLookuper:   domainname.NewDefaultLookuper(),
 		cloudflareClient: cloudsync.NewCloudflareClient(),
+		fxFetcher:        newDefaultFXFetcher(),
 		version:          "0.1.0-dev",
 	}
 	for _, opt := range opts {
@@ -184,6 +216,10 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 			Store:          store,
 		})
 	}
+	autoRunner := cfg.autoRunner
+	if autoRunner == nil {
+		autoRunner = newAutomationRunnerFromConfig(store, cfg)
+	}
 
 	allowedHosts := make(map[string]struct{})
 	cop := http.NewCrossOriginProtection()
@@ -218,14 +254,15 @@ func NewHandler(store *storage.Store, frontend http.Handler, opts ...Option) htt
 		authentication.routes(api)
 		api.Group(func(private chi.Router) {
 			private.Use(authentication.require)
+			authentication.privateRoutes(private)
 			domainRoutes(private, store, cfg.domainLookuper)
 			integrationRoutes(private, store, cfg.cloudRegistry, cfg.domainLookuper)
-			subscriptionRoutes(private, store)
+			subscriptionRoutes(private, store, cfg.fxFetcher)
 			accountRoutes(private, store)
 			vaultRoutes(private, store)
 			ipRoutes(private, store, cfg.ipLookuper, cfg.ipProber)
 			serverRoutes(private, store, cfg.ipLookuper)
-			systemRoutes(private, updaterSvc, cfg.restartFn)
+			systemRoutes(private, store, updaterSvc, cfg.restartFn, autoRunner)
 		})
 	})
 	adminRouter.NotFound(func(w http.ResponseWriter, r *http.Request) {

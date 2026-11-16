@@ -1,7 +1,7 @@
-import type { Account, IpNode, Preferences, ServerHost, Subscription } from '@irm/api-client';
+import type { Account, Domain, IpNode, Preferences, ServerHost, Subscription } from '@irm/api-client';
 import { Link } from '@tanstack/react-router';
 import { Alert, App, Button, Descriptions, Drawer, Progress } from 'antd';
-import { ArrowUpRight, Pencil, RotateCw } from 'lucide-react';
+import { ArrowUpRight, Globe, Pencil, RotateCw } from 'lucide-react';
 
 import { usePreferences } from '../../../app/preferences-context';
 import { AccountMark } from '../../accounts/components/account-mark';
@@ -16,6 +16,7 @@ export function SubscriptionDetails({
   prefs,
   linkedAccount,
   billingAccount,
+  linkedDomains = [],
   linkedServers = [],
   linkedIps = [],
   onClose,
@@ -27,6 +28,7 @@ export function SubscriptionDetails({
   prefs?: Preferences;
   linkedAccount?: Account;
   billingAccount?: Account;
+  linkedDomains?: Domain[];
   linkedServers?: ServerHost[];
   linkedIps?: IpNode[];
   onClose: () => void;
@@ -184,6 +186,26 @@ export function SubscriptionDetails({
                   <span className="account-mini-tag shrink-0">{role}</span>
                 </span>
                 <code>{account.identifier}</code>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {linkedDomains.length > 0 && (
+        <div className="detail-related-block">
+          <h4>{`${t('反向关联域名')} (${linkedDomains.length})`}</h4>
+          <div className="sub-reverse-domains">
+            {linkedDomains.map(dom => (
+              <Link
+                key={`dom-${dom.id}`}
+                to="/domains"
+                search={{ detail: dom.id }}
+                className="sub-reverse-domain-pill"
+                onClick={onClose}
+              >
+                <Globe size={13.5} />
+                <span>{dom.name}</span>
               </Link>
             ))}
           </div>

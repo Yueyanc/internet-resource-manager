@@ -11,6 +11,7 @@ import {
   Copy,
   Eye,
   KeyRound,
+  Link2,
   MoreHorizontal,
   Pencil,
   ShieldAlert,
@@ -36,6 +37,7 @@ const PHONE_LIKE_RE = /^\+?\d[\d\s()*#-]{5,}$/;
 export function AccountCard({
   value,
   downstreamCount,
+  linkedAssetsCount = 0,
   allById,
   linkedSubscriptions = [],
   masked,
@@ -48,6 +50,7 @@ export function AccountCard({
 }: {
   value: Account;
   downstreamCount: number;
+  linkedAssetsCount?: number;
   allById?: Map<string, Account>;
   linkedSubscriptions?: Subscription[];
   masked: boolean;
@@ -318,6 +321,18 @@ export function AccountCard({
     footerNodes.push({
       key: 'recovery-saved',
       node: <span className="account-meta-text">{t('恢复码已备')}</span>,
+    });
+  }
+
+  if (linkedAssetsCount > 0) {
+    footerNodes.push({
+      key: 'linked-assets',
+      node: (
+        <button type="button" className="account-meta-chip is-interactive" onClick={onDetails}>
+          <Link2 size={11.5} />
+          <span>{t('关联资产 {count} 项', { count: linkedAssetsCount })}</span>
+        </button>
+      ),
     });
   }
 

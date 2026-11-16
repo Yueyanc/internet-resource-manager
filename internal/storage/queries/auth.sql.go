@@ -24,17 +24,40 @@ func (q *Queries) CreateAdministrator(ctx context.Context, arg CreateAdministrat
 }
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token_hash, expires_at) VALUES (?, ?)
+INSERT INTO sessions (token_hash, expires_at, user_agent, ip_address, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type CreateSessionParams struct {
-	TokenHash string `json:"token_hash"`
-	ExpiresAt int64  `json:"expires_at"`
+	TokenHash  string `json:"token_hash"`
+	ExpiresAt  int64  `json:"expires_at"`
+	UserAgent  string `json:"user_agent"`
+	IpAddress  string `json:"ip_address"`
+	CreatedAt  string `json:"created_at"`
+	LastSeenAt string `json:"last_seen_at"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
-	_, err := q.db.ExecContext(ctx, createSession, arg.TokenHash, arg.ExpiresAt)
+	_, err := q.db.ExecContext(ctx, createSession,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.UserAgent,
+		arg.IpAddress,
+		arg.CreatedAt,
+		arg.LastSeenAt,
+	)
 	return err
+}
+
+const deleteOtherSessions = `-- name: DeleteOtherSessions :execrows
+DELETE FROM sessions WHERE token_hash != ?
+`
+
+func (q *Queries) DeleteOtherSessions(ctx context.Context, tokenHash string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOtherSessions, tokenHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteSession = `-- name: DeleteSession :exec
@@ -46,8 +69,25 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
 	return err
 }
 
+const deleteSessionByPrefix = `-- name: DeleteSessionByPrefix :execrows
+DELETE FROM sessions WHERE substr(token_hash, 1, 16) = ? AND token_hash != ?
+`
+
+type DeleteSessionByPrefixParams struct {
+	TokenHash   string `json:"token_hash"`
+	TokenHash_2 string `json:"token_hash_2"`
+}
+
+func (q *Queries) DeleteSessionByPrefix(ctx context.Context, arg DeleteSessionByPrefixParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSessionByPrefix, arg.TokenHash, arg.TokenHash_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const findSession = `-- name: FindSession :one
-SELECT token_hash FROM sessions WHERE token_hash = ? AND expires_at > ?
+SELECT token_hash, last_seen_at FROM sessions WHERE token_hash = ? AND expires_at > ?
 `
 
 type FindSessionParams struct {
@@ -55,11 +95,16 @@ type FindSessionParams struct {
 	ExpiresAt int64  `json:"expires_at"`
 }
 
-func (q *Queries) FindSession(ctx context.Context, arg FindSessionParams) (string, error) {
+type FindSessionRow struct {
+	TokenHash  string `json:"token_hash"`
+	LastSeenAt string `json:"last_seen_at"`
+}
+
+func (q *Queries) FindSession(ctx context.Context, arg FindSessionParams) (FindSessionRow, error) {
 	row := q.db.QueryRowContext(ctx, findSession, arg.TokenHash, arg.ExpiresAt)
-	var token_hash string
-	err := row.Scan(&token_hash)
-	return token_hash, err
+	var i FindSessionRow
+	err := row.Scan(&i.TokenHash, &i.LastSeenAt)
+	return i, err
 }
 
 const getAdministrator = `-- name: GetAdministrator :one
@@ -78,11 +123,76 @@ func (q *Queries) GetAdministrator(ctx context.Context) (GetAdministratorRow, er
 	return i, err
 }
 
+const listActiveSessions = `-- name: ListActiveSessions :many
+SELECT token_hash, expires_at, user_agent, ip_address, created_at, last_seen_at
+FROM sessions
+WHERE expires_at > ?
+ORDER BY last_seen_at DESC, expires_at DESC
+`
+
+func (q *Queries) ListActiveSessions(ctx context.Context, expiresAt int64) ([]Session, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveSessions, expiresAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.TokenHash,
+			&i.ExpiresAt,
+			&i.UserAgent,
+			&i.IpAddress,
+			&i.CreatedAt,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pruneSessions = `-- name: PruneSessions :exec
 DELETE FROM sessions WHERE expires_at <= ?
 `
 
 func (q *Queries) PruneSessions(ctx context.Context, expiresAt int64) error {
 	_, err := q.db.ExecContext(ctx, pruneSessions, expiresAt)
+	return err
+}
+
+const touchSession = `-- name: TouchSession :exec
+UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?
+`
+
+type TouchSessionParams struct {
+	LastSeenAt string `json:"last_seen_at"`
+	TokenHash  string `json:"token_hash"`
+}
+
+func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) error {
+	_, err := q.db.ExecContext(ctx, touchSession, arg.LastSeenAt, arg.TokenHash)
+	return err
+}
+
+const updateAdministrator = `-- name: UpdateAdministrator :exec
+UPDATE administrator SET username = ?, password_hash = ? WHERE id = 1
+`
+
+type UpdateAdministratorParams struct {
+	Username     string `json:"username"`
+	PasswordHash string `json:"password_hash"`
+}
+
+func (q *Queries) UpdateAdministrator(ctx context.Context, arg UpdateAdministratorParams) error {
+	_, err := q.db.ExecContext(ctx, updateAdministrator, arg.Username, arg.PasswordHash)
 	return err
 }

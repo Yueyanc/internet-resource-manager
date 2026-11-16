@@ -1,6 +1,7 @@
 import {
   accountsOptions,
   deleteSubscription,
+  domainsOptions,
   ipsOptions,
   preferencesOptions,
   renewSubscription,
@@ -31,6 +32,7 @@ export function SubscriptionsPage() {
   const subscriptions = useQuery(subscriptionsOptions);
   const preferences = useQuery(preferencesOptions);
   const accounts = useQuery(accountsOptions);
+  const domains = useQuery(domainsOptions);
   const servers = useQuery(serversOptions);
   const ips = useQuery(ipsOptions);
   const { newSubscription, search } = useWorkspace();
@@ -90,6 +92,11 @@ export function SubscriptionsPage() {
   const prefs = preferences.isSuccess ? preferences.data : undefined;
   const data = available && prefs ? metrics(items, prefs) : undefined;
   const detail = effectiveDetailId ? items.find(item => item.id === effectiveDetailId) : undefined;
+
+  const detailDomains = useMemo(() => {
+    if (!detail || !domains.isSuccess) return [];
+    return domains.data.items.filter(dom => !dom.archived && dom.subscriptionId === detail.id);
+  }, [detail, domains.isSuccess, domains.data]);
 
   const detailServers = useMemo(() => {
     if (!detail || !servers.isSuccess) return [];
@@ -272,6 +279,7 @@ export function SubscriptionsPage() {
           prefs={prefs}
           linkedAccount={detail.accountId ? accountsById.get(detail.accountId) : undefined}
           billingAccount={detail.billingAccountId ? accountsById.get(detail.billingAccountId) : undefined}
+          linkedDomains={detailDomains}
           linkedServers={detailServers}
           linkedIps={detailIps}
           onClose={closeDetail}

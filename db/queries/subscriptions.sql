@@ -41,7 +41,7 @@ UPDATE subscriptions SET due_date = ?, updated_at = ? WHERE id = ? AND due_date 
 DELETE FROM subscriptions WHERE id = ?;
 
 -- name: GetPreferences :one
-SELECT base_currency, rates_json FROM preferences WHERE id = 1;
+SELECT base_currency, rates_json, rates_updated_at FROM preferences WHERE id = 1;
 
 -- name: SavePreferences :exec
-UPDATE preferences SET base_currency = ?, rates_json = ? WHERE id = 1;
+UPDATE preferences SET base_currency = ?, rates_json = ?, rates_updated_at = ? WHERE id = 1;

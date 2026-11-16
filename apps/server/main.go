@@ -114,6 +114,10 @@ func run() error {
 		server.WithUpdater(updaterSvc),
 		server.WithRestartFunc(func() { stop() }),
 	}
+	autoRunner := server.NewAutomationRunner(store, opts...)
+	opts = append(opts, server.WithAutomationRunner(autoRunner))
+	go autoRunner.RunLoop(ctx, 5*time.Minute)
+
 	httpServer := &http.Server{
 		Addr:              addr,
 		Handler:           server.NewHandler(store, webui.Handler(), opts...),

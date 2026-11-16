@@ -198,9 +198,59 @@ func (s *Store) DeleteSubscription(ctx context.Context, id string) error {
 func (s *Store) Preferences(ctx context.Context) (queries.GetPreferencesRow, error) {
 	return s.queries.GetPreferences(ctx)
 }
-func (s *Store) SavePreferences(ctx context.Context, currency, rates string) error {
-	return s.queries.SavePreferences(ctx, queries.SavePreferencesParams{BaseCurrency: currency, RatesJson: rates})
+
+func (s *Store) SavePreferences(ctx context.Context, currency, rates string) (string, error) {
+	updatedAt := time.Now().UTC().Format(time.RFC3339)
+	if err := s.queries.SavePreferences(ctx, queries.SavePreferencesParams{
+		BaseCurrency:   currency,
+		RatesJson:      rates,
+		RatesUpdatedAt: updatedAt,
+	}); err != nil {
+		return "", err
+	}
+	return updatedAt, nil
 }
+
+// AutoAdvanceSubscriptions advances overdue active auto-renewing subscriptions (excluding intention=="cancel" and cycle=="once")
+// forward cycle-by-cycle until their dueDate is >= today (YYYY-MM-DD).
+func (s *Store) AutoAdvanceSubscriptions(ctx context.Context, today string) ([]queries.Subscription, error) {
+	rows, err := s.queries.ListSubscriptions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var advanced []queries.Subscription
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, sub := range rows {
+		if sub.Archived != 0 || sub.RenewalMode != "auto" || sub.Intention == "cancel" || sub.Cycle == "once" {
+			continue
+		}
+		if sub.DueDate == "" || sub.DueDate >= today {
+			continue
+		}
+		target := sub.DueDate
+		for steps := 0; target < today && steps < 240; steps++ {
+			next, nextErr := subscription.NextDate(target, sub.Cycle, int(sub.IntervalDays))
+			if nextErr != nil || next <= target {
+				break
+			}
+			target = next
+		}
+		if target <= sub.DueDate {
+			continue
+		}
+		updated, uerr := s.queries.RenewSubscription(ctx, queries.RenewSubscriptionParams{
+			DueDate:   target,
+			UpdatedAt: now,
+			ID:        sub.ID,
+			DueDate_2: sub.DueDate,
+		})
+		if uerr == nil {
+			advanced = append(advanced, updated)
+		}
+	}
+	return advanced, nil
+}
+
 func (s *Store) Counts(ctx context.Context) (queries.GetCountsRow, error) {
 	return s.queries.GetCounts(ctx)
 }

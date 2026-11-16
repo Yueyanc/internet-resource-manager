@@ -2,12 +2,19 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/Yueyanc/internet-resource-manager/internal/storage"
 	"github.com/Yueyanc/internet-resource-manager/internal/updater"
 	"github.com/go-chi/chi/v5"
 )
@@ -15,8 +22,10 @@ import (
 const systemLongOpTimeout = 15 * time.Minute
 
 type systemHandler struct {
+	store     *storage.Store
 	updater   *updater.Service
 	restartFn func()
+	autoRun   *AutomationRunner
 }
 
 type rollbackRequest struct {
@@ -24,18 +33,26 @@ type rollbackRequest struct {
 	RestoreDatabase bool   `json:"restoreDatabase,omitempty"`
 }
 
-func systemRoutes(r chi.Router, svc *updater.Service, restartFn func()) {
+func systemRoutes(r chi.Router, store *storage.Store, svc *updater.Service, restartFn func(), autoRun *AutomationRunner) {
 	h := &systemHandler{
+		store:     store,
 		updater:   svc,
 		restartFn: restartFn,
+		autoRun:   autoRun,
 	}
 	r.Route("/system", func(sys chi.Router) {
 		sys.Get("/version", h.getVersion)
+		sys.Get("/storage", h.getStorage)
+		sys.Get("/backup/sqlite", h.downloadSQLiteBackup)
+		sys.Get("/backup/json", h.downloadJSONExport)
 		sys.Get("/check-updates", h.checkUpdates)
 		sys.Get("/rollback-versions", h.getRollbackVersions)
 		sys.Post("/update", h.performUpdate)
 		sys.Post("/rollback", h.rollback)
 		sys.Post("/restart", h.restart)
+		if autoRun != nil {
+			autoRun.routes(sys)
+		}
 	})
 }
 
@@ -46,6 +63,157 @@ func (h *systemHandler) getVersion(w http.ResponseWriter, _ *http.Request) {
 		"deploymentMode": h.updater.DeploymentMode(),
 		"canSelfUpdate":  h.updater.CanSelfUpdate(),
 	})
+}
+
+func (h *systemHandler) getStorage(w http.ResponseWriter, r *http.Request) {
+	counts, err := h.store.Counts(r.Context())
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	integrations, _ := h.store.ListProviderConnections(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"dbSizeBytes":       h.store.DBSizeBytes(r.Context()),
+		"counts":            counts,
+		"integrationsCount": len(integrations),
+		"version":           h.updater.CurrentVersion(),
+		"buildType":         h.updater.BuildType(),
+		"deploymentMode":    h.updater.DeploymentMode(),
+		"canSelfUpdate":     h.updater.CanSelfUpdate(),
+	})
+}
+
+func (h *systemHandler) downloadSQLiteBackup(w http.ResponseWriter, r *http.Request) {
+	tmpFile := filepath.Join(os.TempDir(), "irm-backup-"+rand.Text()+".db")
+	defer func() { _ = os.Remove(tmpFile) }()
+
+	if err := h.store.BackupTo(r.Context(), tmpFile); err != nil {
+		slog.Error("sqlite online backup failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "backup_failed", "生成 SQLite 在线快照失败："+err.Error())
+		return
+	}
+
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+
+	filename := fmt.Sprintf("irm-snapshot-%s.db", time.Now().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "application/vnd.sqlite3")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, f)
+}
+
+func (h *systemHandler) downloadJSONExport(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	prefsRow, err := h.store.Preferences(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	var rates map[string]float64
+	_ = json.Unmarshal([]byte(prefsRow.RatesJson), &rates)
+
+	accountsRaw, err := h.store.ListAccounts(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	accounts := make([]accountResponse, 0, len(accountsRaw))
+	for _, a := range accountsRaw {
+		accounts = append(accounts, accountDTO(a))
+	}
+
+	subsRaw, err := h.store.ListSubscriptions(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	subscriptions := make([]subscriptionResponse, 0, len(subsRaw))
+	for _, s := range subsRaw {
+		subscriptions = append(subscriptions, subscriptionDTO(s))
+	}
+
+	domainsRaw, err := h.store.ListDomains(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	domains := make([]domainResponse, 0, len(domainsRaw))
+	for _, d := range domainsRaw {
+		domains = append(domains, domainDTO(d))
+	}
+
+	serversRaw, err := h.store.ListServers(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	servers := make([]serverResponse, 0, len(serversRaw))
+	for _, srv := range serversRaw {
+		servers = append(servers, serverDTO(srv))
+	}
+
+	ipsRaw, err := h.store.ListIPs(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	ips := make([]ipResponse, 0, len(ipsRaw))
+	for _, ip := range ipsRaw {
+		ips = append(ips, ipDTO(ip))
+	}
+
+	connsRaw, err := h.store.ListProviderConnections(ctx)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	integrations := make([]providerConnectionResponse, 0, len(connsRaw))
+	for _, c := range connsRaw {
+		integrations = append(integrations, providerConnectionDTO(c))
+	}
+
+	exportPayload := map[string]any{
+		"schemaVersion": 1,
+		"exportedAt":    time.Now().UTC().Format(time.RFC3339),
+		"version":       h.updater.CurrentVersion(),
+		"preferences": map[string]any{
+			"baseCurrency":   prefsRow.BaseCurrency,
+			"rates":          rates,
+			"ratesUpdatedAt": prefsRow.RatesUpdatedAt,
+		},
+		"accounts":      accounts,
+		"subscriptions": subscriptions,
+		"domains":       domains,
+		"servers":       servers,
+		"ips":           ips,
+		"integrations":  integrations,
+	}
+
+	encoded, err := json.MarshalIndent(exportPayload, "", "  ")
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+
+	filename := fmt.Sprintf("irm-assets-%s.json", time.Now().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(encoded)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(encoded)
 }
 
 func (h *systemHandler) checkUpdates(w http.ResponseWriter, r *http.Request) {

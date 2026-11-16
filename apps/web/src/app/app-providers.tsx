@@ -27,7 +27,7 @@ export function AppProviders({ children }: PropsWithChildren) {
     }
   }, [locale, mode, sidebar]);
   return (
-    <PreferencesContext.Provider value={{ locale, mode, collapsed: sidebar === 'collapsed', t: translator(locale), setLocale, toggleMode: () => setMode(value => value === 'dark' ? 'light' : 'dark'), toggleSidebar: () => setSidebar(value => value === 'collapsed' ? 'expanded' : 'collapsed') }}>
+    <PreferencesContext.Provider value={{ locale, mode, collapsed: sidebar === 'collapsed', t: translator(locale), setLocale, setMode, toggleMode: () => setMode(value => value === 'dark' ? 'light' : 'dark'), toggleSidebar: () => setSidebar(value => value === 'collapsed' ? 'expanded' : 'collapsed') }}>
       <ThemeProvider mode={mode} locale={locale}>{children}</ThemeProvider>
     </PreferencesContext.Provider>
   );

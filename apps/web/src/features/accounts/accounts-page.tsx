@@ -3,7 +3,15 @@ import {
   accountsOptions,
   checkinAccount,
   deleteAccount,
+  type Domain,
+  domainsOptions,
+  integrationsOptions,
+  type IpNode,
+  ipsOptions,
   preferencesOptions,
+  type ProviderConnection,
+  type ServerHost,
+  serversOptions,
   type Subscription,
   subscriptionsOptions,
 } from '@irm/api-client';
@@ -39,8 +47,12 @@ import { useVault } from './vault/vault-context';
 export function AccountsPage() {
   const accounts = useQuery(accountsOptions);
   const subscriptions = useQuery(subscriptionsOptions);
+  const domains = useQuery(domainsOptions);
+  const servers = useQuery(serversOptions);
+  const ips = useQuery(ipsOptions);
+  const integrations = useQuery(integrationsOptions);
   const preferences = useQuery(preferencesOptions);
-  const { newAccount, search } = useWorkspace();
+  const { newAccount, openSettings, search } = useWorkspace();
   const routeSearch = useSearch({ strict: false }) as { detail?: string };
   const navigate = useNavigate();
   const { t, locale } = usePreferences();
@@ -176,6 +188,92 @@ export function AccountsPage() {
     return map;
   }, [subscriptionItems]);
 
+  const connsByAccountId = useMemo(() => {
+    const map = new Map<string, ProviderConnection[]>();
+    for (const conn of integrations.data?.items ?? []) {
+      if (!conn.accountId) continue;
+      const list = map.get(conn.accountId) ?? [];
+      list.push(conn);
+      map.set(conn.accountId, list);
+    }
+    return map;
+  }, [integrations.data]);
+
+  const connOwnerById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const conn of integrations.data?.items ?? []) {
+      if (conn.accountId) map.set(conn.id, conn.accountId);
+    }
+    return map;
+  }, [integrations.data]);
+
+  const domainsByAccountId = useMemo(() => {
+    const map = new Map<string, Domain[]>();
+    for (const dom of domains.data?.items ?? []) {
+      if (dom.archived) continue;
+      const owners = new Set<string>();
+      if (dom.registrarAccountId) owners.add(dom.registrarAccountId);
+      if (dom.providerConnectionId) {
+        const owner = connOwnerById.get(dom.providerConnectionId);
+        if (owner) owners.add(owner);
+      }
+      for (const accId of owners) {
+        const list = map.get(accId) ?? [];
+        list.push(dom);
+        map.set(accId, list);
+      }
+    }
+    return map;
+  }, [domains.data, connOwnerById]);
+
+  const serversByAccountId = useMemo(() => {
+    const map = new Map<string, ServerHost[]>();
+    for (const srv of servers.data?.items ?? []) {
+      if (srv.archived) continue;
+      const owners = new Set<string>();
+      if (srv.accountId) owners.add(srv.accountId);
+      if (srv.providerConnectionId) {
+        const owner = connOwnerById.get(srv.providerConnectionId);
+        if (owner) owners.add(owner);
+      }
+      for (const accId of owners) {
+        const list = map.get(accId) ?? [];
+        list.push(srv);
+        map.set(accId, list);
+      }
+    }
+    return map;
+  }, [servers.data, connOwnerById]);
+
+  const ipsByAccountId = useMemo(() => {
+    const map = new Map<string, IpNode[]>();
+    for (const ip of ips.data?.items ?? []) {
+      if (ip.archived) continue;
+      const owners = new Set<string>(ip.accountIds);
+      for (const accId of owners) {
+        const list = map.get(accId) ?? [];
+        list.push(ip);
+        map.set(accId, list);
+      }
+    }
+    return map;
+  }, [ips.data]);
+
+  const linkedAssetsCountById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of items) {
+      const count = (domainsByAccountId.get(item.id)?.length ?? 0)
+        + (serversByAccountId.get(item.id)?.length ?? 0)
+        + (ipsByAccountId.get(item.id)?.length ?? 0)
+        + (connsByAccountId.get(item.id)?.length ?? 0)
+        + (data?.downstreamByAccountId.get(item.id)?.length ?? 0);
+      if (count > 0) {
+        map.set(item.id, count);
+      }
+    }
+    return map;
+  }, [items, domainsByAccountId, serversByAccountId, ipsByAccountId, connsByAccountId, data]);
+
   const downstreamList = useMemo(
     () => (detail ? (data?.downstreamByAccountId.get(detail.id) ?? []) : []),
     [detail, data],
@@ -184,6 +282,26 @@ export function AccountsPage() {
   const linkedSubscriptions = useMemo(
     () => (detail ? (subsByAccountId.get(detail.id) ?? []) : []),
     [detail, subsByAccountId],
+  );
+
+  const linkedDomains = useMemo(
+    () => (detail ? (domainsByAccountId.get(detail.id) ?? []) : []),
+    [detail, domainsByAccountId],
+  );
+
+  const linkedServers = useMemo(
+    () => (detail ? (serversByAccountId.get(detail.id) ?? []) : []),
+    [detail, serversByAccountId],
+  );
+
+  const linkedIps = useMemo(
+    () => (detail ? (ipsByAccountId.get(detail.id) ?? []) : []),
+    [detail, ipsByAccountId],
+  );
+
+  const linkedConnections = useMemo(
+    () => (detail ? (connsByAccountId.get(detail.id) ?? []) : []),
+    [detail, connsByAccountId],
   );
 
   const downstreamSubscriptions = useMemo(() => {
@@ -405,6 +523,7 @@ export function AccountsPage() {
                               key={item.id}
                               value={item}
                               downstreamCount={data?.downstreamByAccountId.get(item.id)?.length ?? 0}
+                              linkedAssetsCount={linkedAssetsCountById.get(item.id) ?? 0}
                               allById={allById}
                               linkedSubscriptions={subsByAccountId.get(item.id)}
                               masked={masked}
@@ -443,12 +562,17 @@ export function AccountsPage() {
           downstream={downstreamList}
           linkedSubscriptions={linkedSubscriptions}
           downstreamSubscriptions={downstreamSubscriptions}
+          linkedDomains={linkedDomains}
+          linkedServers={linkedServers}
+          linkedIps={linkedIps}
+          linkedConnections={linkedConnections}
           onClose={closeDetail}
           onEdit={() => {
             setEditing(detail);
             closeDetail();
           }}
           onSelectAccount={id => setDetailId(id)}
+          onOpenCloudSettings={() => openSettings('integrations')}
           onCheckin={() => checkin.mutateAsync(detail)}
           checkingIn={checkin.isPending}
         />

@@ -70,6 +70,18 @@ type AgentEnrollToken struct {
 	CreatedAt      string         `json:"created_at"`
 }
 
+type AutomationSetting struct {
+	ID               int64  `json:"id"`
+	ConfigJson       string `json:"config_json"`
+	SecretCiphertext []byte `json:"secret_ciphertext"`
+	SecretNonce      []byte `json:"secret_nonce"`
+	StateJson        string `json:"state_json"`
+	LastRunAt        string `json:"last_run_at"`
+	LastStatus       string `json:"last_status"`
+	LastError        string `json:"last_error"`
+	UpdatedAt        string `json:"updated_at"`
+}
+
 type Domain struct {
 	ID                   string         `json:"id"`
 	Name                 string         `json:"name"`
@@ -162,9 +174,10 @@ type IpDomain struct {
 }
 
 type Preference struct {
-	ID           int64  `json:"id"`
-	BaseCurrency string `json:"base_currency"`
-	RatesJson    string `json:"rates_json"`
+	ID             int64  `json:"id"`
+	BaseCurrency   string `json:"base_currency"`
+	RatesJson      string `json:"rates_json"`
+	RatesUpdatedAt string `json:"rates_updated_at"`
 }
 
 type ProviderConnection struct {
@@ -267,8 +280,12 @@ type ServerDomain struct {
 }
 
 type Session struct {
-	TokenHash string `json:"token_hash"`
-	ExpiresAt int64  `json:"expires_at"`
+	TokenHash  string `json:"token_hash"`
+	ExpiresAt  int64  `json:"expires_at"`
+	UserAgent  string `json:"user_agent"`
+	IpAddress  string `json:"ip_address"`
+	CreatedAt  string `json:"created_at"`
+	LastSeenAt string `json:"last_seen_at"`
 }
 
 type Subscription struct {

@@ -12,5 +12,20 @@ export default defineConfig({
       '/agent': target,
     },
   },
-  build: { target: 'es2022' },
+  build: {
+    target: 'es2022',
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          maxSize: 460_000,
+          groups: [
+            { name: 'vendor-react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 30 },
+            { name: 'vendor-data', test: /node_modules[\\/](@tanstack|zod)[\\/]/, priority: 25 },
+            { name: 'vendor-lucide', test: /node_modules[\\/]lucide-react[\\/]/, priority: 20 },
+            { name: 'vendor-ui', test: /node_modules[\\/]/, priority: 10 },
+          ],
+        },
+      },
+    },
+  },
 });

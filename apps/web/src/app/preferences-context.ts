@@ -6,8 +6,9 @@ import { translator } from './messages';
 export type ColorMode = 'dark' | 'light';
 export const PreferencesContext = createContext<{
   locale: Locale; mode: ColorMode; collapsed: boolean; t: Translate;
-  setLocale: (locale: Locale) => void; toggleMode: () => void; toggleSidebar: () => void;
+  setLocale: (locale: Locale) => void; setMode: (mode: ColorMode) => void; toggleMode: () => void; toggleSidebar: () => void;
 }>({ locale: 'zh-CN', mode: 'light', collapsed: false, t: translator('zh-CN'), setLocale: () => {
+}, setMode: () => {
 }, toggleMode: () => {
 }, toggleSidebar: () => {
 } });

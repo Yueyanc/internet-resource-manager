@@ -49,7 +49,7 @@ func resourceError(w http.ResponseWriter, err error) {
 	internalError(w, err)
 }
 
-func subscriptionRoutes(r chi.Router, store *storage.Store) {
+func subscriptionRoutes(r chi.Router, store *storage.Store, fxFetcher FXFetcher) {
 	r.Get("/subscriptions", func(w http.ResponseWriter, r *http.Request) {
 		values, err := store.ListSubscriptions(r.Context())
 		if err != nil {
@@ -138,7 +138,11 @@ func subscriptionRoutes(r chi.Router, store *storage.Store) {
 			internalError(w, err)
 			return
 		}
-		writeJSON(w, 200, map[string]any{"baseCurrency": v.BaseCurrency, "rates": rates})
+		writeJSON(w, 200, map[string]any{
+			"baseCurrency":   v.BaseCurrency,
+			"rates":          rates,
+			"ratesUpdatedAt": v.RatesUpdatedAt,
+		})
 	})
 	r.Put("/preferences", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
@@ -162,10 +166,68 @@ func subscriptionRoutes(r chi.Router, store *storage.Store) {
 			internalError(w, err)
 			return
 		}
-		if err := store.SavePreferences(r.Context(), input.BaseCurrency, string(data)); err != nil {
+		updatedAt, err := store.SavePreferences(r.Context(), input.BaseCurrency, string(data))
+		if err != nil {
 			internalError(w, err)
 			return
 		}
-		writeJSON(w, 200, input)
+		writeJSON(w, 200, map[string]any{
+			"baseCurrency":   input.BaseCurrency,
+			"rates":          input.Rates,
+			"ratesUpdatedAt": updatedAt,
+		})
+	})
+	r.Post("/preferences/fetch-rates", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			BaseCurrency string `json:"baseCurrency"`
+			Persist      *bool  `json:"persist"`
+		}
+		if r.ContentLength > 0 {
+			if !decodeJSON(w, r, &req) {
+				return
+			}
+		}
+		if fxFetcher == nil {
+			writeError(w, http.StatusServiceUnavailable, "fx_unavailable", "汇率服务未就绪")
+			return
+		}
+		rates, source, err := fxFetcher.FetchCNYReferenceRates(r.Context())
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "fx_fetch_failed", "获取实时参考汇率失败："+err.Error())
+			return
+		}
+		curPrefs, err := store.Preferences(r.Context())
+		if err != nil {
+			internalError(w, err)
+			return
+		}
+		baseCurrency := curPrefs.BaseCurrency
+		if slices.Contains(subscription.Currencies, req.BaseCurrency) {
+			baseCurrency = req.BaseCurrency
+		}
+		persist := true
+		if req.Persist != nil {
+			persist = *req.Persist
+		}
+		updatedAt := curPrefs.RatesUpdatedAt
+		if persist {
+			data, err := json.Marshal(rates)
+			if err != nil {
+				internalError(w, err)
+				return
+			}
+			savedAt, err := store.SavePreferences(r.Context(), baseCurrency, string(data))
+			if err != nil {
+				internalError(w, err)
+				return
+			}
+			updatedAt = savedAt
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"baseCurrency":   baseCurrency,
+			"rates":          rates,
+			"ratesUpdatedAt": updatedAt,
+			"source":         source,
+		})
 	})
 }

@@ -1,7 +1,31 @@
-import type { Account, Preferences, Subscription } from '@irm/api-client';
+import type {
+  Account,
+  Domain,
+  IpNode,
+  Preferences,
+  ProviderConnection,
+  ServerHost,
+  Subscription,
+} from '@irm/api-client';
 import { Link } from '@tanstack/react-router';
 import { Alert, App, Button, Checkbox, Descriptions, Drawer, Progress } from 'antd';
-import { ArrowUpRight, CheckCircle2, Copy, Eye, EyeOff, KeyRound, LockKeyhole, Pencil } from 'lucide-react';
+import dayjs from 'dayjs';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
+  Copy,
+  CreditCard,
+  Crown,
+  Eye,
+  EyeOff,
+  Globe,
+  KeyRound,
+  LockKeyhole,
+  Network,
+  Pencil,
+  Server,
+} from 'lucide-react';
 import { useState } from 'react';
 
 import { usePreferences } from '../../../app/preferences-context';
@@ -27,9 +51,14 @@ export function AccountDetails({
   downstream,
   linkedSubscriptions,
   downstreamSubscriptions = [],
+  linkedDomains = [],
+  linkedServers = [],
+  linkedIps = [],
+  linkedConnections = [],
   onClose,
   onEdit,
   onSelectAccount,
+  onOpenCloudSettings,
   onCheckin,
   checkingIn,
 }: {
@@ -39,9 +68,14 @@ export function AccountDetails({
   downstream: Account[];
   linkedSubscriptions: Subscription[];
   downstreamSubscriptions?: Subscription[];
+  linkedDomains?: Domain[];
+  linkedServers?: ServerHost[];
+  linkedIps?: IpNode[];
+  linkedConnections?: ProviderConnection[];
   onClose: () => void;
   onEdit: () => void;
   onSelectAccount: (id: string) => void;
+  onOpenCloudSettings?: () => void;
   onCheckin: () => Promise<unknown>;
   checkingIn: boolean;
 }) {
@@ -134,6 +168,14 @@ export function AccountDetails({
         ? `${value.nextCheckinDate} · ${t('今天到期')}`
         : `${value.nextCheckinDate} · ${t('剩 {count} 天', { count: days })}`;
 
+  const totalImpactCount = linkedSubscriptions.length
+    + linkedDomains.length
+    + linkedServers.length
+    + linkedIps.length
+    + linkedConnections.length
+    + downstream.length
+    + downstreamSubscriptions.length;
+
   const items = [
     { key: 'platform', label: t('平台名称'), children: title },
     {
@@ -213,11 +255,13 @@ export function AccountDetails({
     { key: 'archived', label: t('已停用归档'), children: value.archived ? t('已归档') : '—' },
   ];
 
+  const todayStart = dayjs().startOf('day');
+
   return (
     <Drawer
       open
       title={t('账号详情')}
-      size={480}
+      size={500}
       onClose={onClose}
       footer={(
         <div className="detail-actions">
@@ -341,16 +385,196 @@ export function AccountDetails({
       {issues.includes('missing_recovery_codes') && (
         <Alert showIcon type="warning" className="mb-4" title={t('已开启两步验证但未确认恢复码备份')} />
       )}
-      {(value.status === 'retiring' || value.status === 'restricted') && !value.archived && linkedSubscriptions.length > 0 && (
+      {(value.status === 'retiring' || value.status === 'restricted') && !value.archived && totalImpactCount > 0 && (
         <Alert
           showIcon
           type="warning"
           className="mb-4"
-          title={t('该账号仍关联 {count} 笔在用订阅，销号或换绑前请先处理续费与代扣关系。', { count: linkedSubscriptions.length })}
+          title={t('该账号仍串联 {count} 项下游资产，销号或换绑前请先解除关联影响面。', { count: totalImpactCount })}
         />
       )}
       {value.status === 'retiring' && value.kycStatus === 'verified' && !value.archived && (
         <Alert showIcon type="info" className="mb-4" title={t('该计划注销账号含实名认证，销号前请确认解绑实名与手机号。')} />
+      )}
+
+      {totalImpactCount > 0 && (
+        <section className="reverse-topology-section" aria-label={t('关联资产与影响面')}>
+          <div className="reverse-topology-head">
+            <h4>{t('关联资产与影响面 (反向拓扑)')}</h4>
+            {prefs && linkedSubscriptions.length > 0 && (
+              <span className="detail-related-spend">
+                {t('月均约 {amount}', {
+                  amount: displayMoney(
+                    linkedSubscriptions.reduce((sum, sub) => sum + monthlyCost(sub, prefs), 0),
+                    prefs.baseCurrency,
+                    locale,
+                  ),
+                })}
+              </span>
+            )}
+          </div>
+
+          <div className="reverse-topology-banner">
+            <Crown size={15} />
+            <span>
+              {value.role === 'hub' || totalImpactCount >= 3
+                ? t('核心枢纽账号 · 共串联 {count} 项下游资产', { count: totalImpactCount })
+                : t('共串联 {count} 项关联资产', { count: totalImpactCount })}
+            </span>
+          </div>
+
+          <div className="reverse-topology-stack">
+            {linkedSubscriptions.length > 0 && (
+              <div className="reverse-topology-group">
+                <div className="reverse-group-label">
+                  <CreditCard size={14} />
+                  <span>{`${t('关联订阅')} (${linkedSubscriptions.length})`}</span>
+                </div>
+                <div className="reverse-group-rows">
+                  {linkedSubscriptions.map(sub => (
+                    <Link
+                      key={sub.id}
+                      to="/subscriptions"
+                      search={{ detail: sub.id }}
+                      className="reverse-row-link"
+                      onClick={onClose}
+                    >
+                      <ServiceMark value={sub} size="sm" />
+                      <span className="reverse-row-title">{sub.name}</span>
+                      <span className="reverse-row-pill">
+                        {sub.billingAccountId === value.id && sub.accountId !== value.id ? t('代扣渠道') : cycleLabel(sub, t)}
+                      </span>
+                      <ArrowRight size={13} className="reverse-row-arrow" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {linkedDomains.length > 0 && (
+              <div className="reverse-topology-group">
+                <div className="reverse-group-label">
+                  <Globe size={14} />
+                  <span>{`${t('托管与注册域名')} (${linkedDomains.length})`}</span>
+                </div>
+                <div className="reverse-group-rows">
+                  {linkedDomains.map((dom) => {
+                    const remDays = dom.expireDate ? dayjs(dom.expireDate).diff(todayStart, 'day') : null;
+                    return (
+                      <Link
+                        key={dom.id}
+                        to="/domains"
+                        search={{ detail: dom.id }}
+                        className="reverse-row-link"
+                        onClick={onClose}
+                      >
+                        <Globe size={14} className="text-slate-500 shrink-0" />
+                        <span className="reverse-row-title">{dom.name}</span>
+                        {remDays !== null && remDays <= 30 && (
+                          <span className={`reverse-row-pill ${remDays < 0 ? 'is-danger' : 'is-warn'}`}>
+                            {remDays < 0 ? t('已过期') : t('剩 {count} 天', { count: remDays })}
+                          </span>
+                        )}
+                        {dom.autoRenew && (remDays === null || remDays > 30) && (
+                          <span className="reverse-row-pill is-safe">{t('自动续费')}</span>
+                        )}
+                        {dom.status === 'active' && (
+                          <span className="reverse-row-pill is-safe">{t('DNS 正常')}</span>
+                        )}
+                        <ArrowRight size={13} className="reverse-row-arrow" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {linkedServers.length > 0 && (
+              <div className="reverse-topology-group">
+                <div className="reverse-group-label">
+                  <Server size={14} />
+                  <span>{`${t('名下服务器')} (${linkedServers.length})`}</span>
+                </div>
+                <div className="reverse-group-rows">
+                  {linkedServers.map((srv) => {
+                    const isOnline = srv.telemetry.agentStatus === 'online';
+                    const isStale = srv.telemetry.agentStatus === 'stale';
+                    return (
+                      <Link
+                        key={srv.id}
+                        to="/servers/$serverId"
+                        params={{ serverId: srv.id }}
+                        className="reverse-row-link"
+                        onClick={onClose}
+                      >
+                        <Server size={14} className="text-slate-500 shrink-0" />
+                        <span className="reverse-row-title">{srv.name}</span>
+                        <span className={`reverse-status-dot ${isOnline ? 'is-online' : isStale ? 'is-danger' : ''}`}>
+                          {isOnline ? t('在线') : isStale ? t('失联') : t('在用')}
+                        </span>
+                        <span className="reverse-row-spec">
+                          {`${srv.cpuCores}C/${Math.max(1, Math.round(srv.memoryMb / 1024))}G`}
+                        </span>
+                        <ArrowRight size={13} className="reverse-row-arrow" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {linkedIps.length > 0 && (
+              <div className="reverse-topology-group">
+                <div className="reverse-group-label">
+                  <Network size={14} />
+                  <span>{`${t('关联 IP 节点')} (${linkedIps.length})`}</span>
+                </div>
+                <div className="reverse-ip-pills">
+                  {linkedIps.map(ip => (
+                    <Link
+                      key={ip.id}
+                      to="/ips"
+                      search={{ detail: ip.id }}
+                      className="reverse-ip-pill"
+                      onClick={onClose}
+                    >
+                      <code>{ip.address}</code>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {linkedConnections.length > 0 && (
+              <div className="reverse-topology-group">
+                <div className="reverse-group-label">
+                  <KeyRound size={14} />
+                  <span>{`${t('云同步凭证')} (${linkedConnections.length})`}</span>
+                </div>
+                <div className="reverse-group-rows">
+                  {linkedConnections.map(conn => (
+                    <button
+                      key={conn.id}
+                      type="button"
+                      className="reverse-row-link"
+                      onClick={() => {
+                        onClose();
+                        onOpenCloudSettings?.();
+                      }}
+                    >
+                      <KeyRound size={13.5} className="text-emerald-600 shrink-0" />
+                      <span className="reverse-row-title">{conn.label || conn.provider}</span>
+                      <span className={`reverse-status-dot ${conn.status === 'ok' ? 'is-online' : 'is-danger'}`}>
+                        {conn.status === 'ok' ? t('正常') : t('异常')}
+                      </span>
+                      <ArrowRight size={13} className="reverse-row-arrow" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {days !== null && !value.archived && (
@@ -381,45 +605,6 @@ export function AccountDetails({
                 <span>{accountDisplayTitle(item)}</span>
                 <code>{item.identifier}</code>
               </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {linkedSubscriptions.length > 0 && (
-        <div className="detail-related-block">
-          <div className="detail-related-head">
-            <h4>{`${t('关联的在用订阅')} (${linkedSubscriptions.length})`}</h4>
-            {prefs && (
-              <span className="detail-related-spend">
-                {t('月均约 {amount}', {
-                  amount: displayMoney(
-                    linkedSubscriptions.reduce((sum, sub) => sum + monthlyCost(sub, prefs), 0),
-                    prefs.baseCurrency,
-                    locale,
-                  ),
-                })}
-              </span>
-            )}
-          </div>
-          <div className="detail-related-list">
-            {linkedSubscriptions.map(sub => (
-              <Link
-                key={sub.id}
-                to="/subscriptions"
-                search={{ detail: sub.id }}
-                className="detail-related-item"
-                onClick={onClose}
-              >
-                <ServiceMark value={sub} size="sm" />
-                <span className="inline-flex items-center gap-1.5 min-w-0">
-                  <span className="truncate">{sub.name}</span>
-                  {sub.billingAccountId === value.id && sub.accountId !== value.id && (
-                    <span className="account-mini-tag shrink-0">{t('代扣渠道')}</span>
-                  )}
-                </span>
-                <code>{`${sub.currency} ${(sub.amountMinor / 100).toFixed(2)} / ${cycleLabel(sub, t)}`}</code>
-              </Link>
             ))}
           </div>
         </div>

@@ -23,18 +23,19 @@ func (q *Queries) DeleteSubscription(ctx context.Context, id string) (int64, err
 }
 
 const getPreferences = `-- name: GetPreferences :one
-SELECT base_currency, rates_json FROM preferences WHERE id = 1
+SELECT base_currency, rates_json, rates_updated_at FROM preferences WHERE id = 1
 `
 
 type GetPreferencesRow struct {
-	BaseCurrency string `json:"base_currency"`
-	RatesJson    string `json:"rates_json"`
+	BaseCurrency   string `json:"base_currency"`
+	RatesJson      string `json:"rates_json"`
+	RatesUpdatedAt string `json:"rates_updated_at"`
 }
 
 func (q *Queries) GetPreferences(ctx context.Context) (GetPreferencesRow, error) {
 	row := q.db.QueryRowContext(ctx, getPreferences)
 	var i GetPreferencesRow
-	err := row.Scan(&i.BaseCurrency, &i.RatesJson)
+	err := row.Scan(&i.BaseCurrency, &i.RatesJson, &i.RatesUpdatedAt)
 	return i, err
 }
 
@@ -166,16 +167,17 @@ func (q *Queries) RenewSubscription(ctx context.Context, arg RenewSubscriptionPa
 }
 
 const savePreferences = `-- name: SavePreferences :exec
-UPDATE preferences SET base_currency = ?, rates_json = ? WHERE id = 1
+UPDATE preferences SET base_currency = ?, rates_json = ?, rates_updated_at = ? WHERE id = 1
 `
 
 type SavePreferencesParams struct {
-	BaseCurrency string `json:"base_currency"`
-	RatesJson    string `json:"rates_json"`
+	BaseCurrency   string `json:"base_currency"`
+	RatesJson      string `json:"rates_json"`
+	RatesUpdatedAt string `json:"rates_updated_at"`
 }
 
 func (q *Queries) SavePreferences(ctx context.Context, arg SavePreferencesParams) error {
-	_, err := q.db.ExecContext(ctx, savePreferences, arg.BaseCurrency, arg.RatesJson)
+	_, err := q.db.ExecContext(ctx, savePreferences, arg.BaseCurrency, arg.RatesJson, arg.RatesUpdatedAt)
 	return err
 }
 

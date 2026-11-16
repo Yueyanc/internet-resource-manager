@@ -38,8 +38,24 @@ export const subscriptionSchema = subscriptionBaseSchema.extend({
 });
 export type Subscription = z.infer<typeof subscriptionSchema>;
 export type SubscriptionInput = z.infer<typeof subscriptionInputSchema>;
-const preferencesSchema = z.object({ baseCurrency: z.enum(currencies), rates: z.object({ CNY: z.literal(1), USD: z.number().positive(), HKD: z.number().positive(), EUR: z.number().positive(), GBP: z.number().positive(), JPY: z.number().positive() }) });
+const ratesObjectSchema = z.object({
+  CNY: z.literal(1),
+  USD: z.number().positive(),
+  HKD: z.number().positive(),
+  EUR: z.number().positive(),
+  GBP: z.number().positive(),
+  JPY: z.number().positive(),
+});
+const preferencesSchema = z.object({
+  baseCurrency: z.enum(currencies),
+  rates: ratesObjectSchema,
+  ratesUpdatedAt: z.string().optional(),
+});
+const liveRatesResponseSchema = preferencesSchema.extend({
+  source: z.string(),
+});
 export type Preferences = z.infer<typeof preferencesSchema>;
+export type LiveRatesResponse = z.infer<typeof liveRatesResponseSchema>;
 export const subscriptionsOptions = queryOptions({ queryKey: ['subscriptions'], queryFn: ({ signal }) => request('/subscriptions', z.object({ items: z.array(subscriptionSchema) }), { signal }), retry: false });
 export const preferencesOptions = queryOptions({ queryKey: ['preferences'], queryFn: ({ signal }) => request('/preferences', preferencesSchema, { signal }), retry: false });
 export const countsOptions = queryOptions({ queryKey: ['nav-counts'], queryFn: ({ signal }) => request('/nav-counts', z.object({ subscriptions: z.number().int(), accounts: z.number().int(), domains: z.number().int(), ips: z.number().int(), servers: z.number().int() }), { signal }), retry: false, refetchInterval: 30_000 });
@@ -52,6 +68,12 @@ export function renewSubscription(value: Subscription) {
 export function deleteSubscription(id: string) {
   return request(`/subscriptions/${encodeURIComponent(id)}`, z.object({ deleted: z.literal(true) }), { method: 'DELETE' });
 }
-export function savePreferences(input: Preferences) {
+export function savePreferences(input: { baseCurrency: Preferences['baseCurrency']; rates: Preferences['rates'] }) {
   return request('/preferences', preferencesSchema, { method: 'PUT', body: JSON.stringify(input) });
+}
+export function fetchLiveRates(input?: { baseCurrency?: Preferences['baseCurrency']; persist?: boolean }) {
+  return request('/preferences/fetch-rates', liveRatesResponseSchema, {
+    method: 'POST',
+    body: JSON.stringify(input ?? {}),
+  });
 }
