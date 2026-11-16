@@ -281,6 +281,8 @@ func InferPresetAndProvider(osLabel string, hasPublicIP bool, lookup *ipaddr.Loo
 			return "contabo", "Contabo", "vps"
 		case strings.Contains(org, "racknerd"):
 			return "racknerd", "RackNerd", "vps"
+		case lookup.ASN == 203380 || strings.Contains(org, "alphavps") || strings.Contains(org, "da international"):
+			return "alphavps", "AlphaVPS", "vps"
 		case strings.Contains(org, "clawcloud"):
 			return "clawcloud", "ClawCloud", "vps"
 		case strings.Contains(org, "rainyun"):

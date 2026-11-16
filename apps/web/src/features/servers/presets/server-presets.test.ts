@@ -26,7 +26,10 @@ describe('server presets', () => {
 
   it('resolves preset by presetKey or provider keyword fallback', () => {
     expect(findServerPreset('hetzner')?.provider.en).toBe('Hetzner');
+    expect(findServerPreset('alphavps')?.provider.en).toBe('AlphaVPS');
+    expect(filterServerPresets('alphavps', 'popular').map(item => item.key)).toContain('alphavps');
     expect(resolveServerPreset({ presetKey: 'dmit', provider: '', name: 'Test' })?.key).toBe('dmit');
+    expect(resolveServerPreset({ presetKey: '', provider: 'AlphaVPS', name: 'SOF-Storage-01' })?.key).toBe('alphavps');
     expect(resolveServerPreset({ presetKey: '', provider: 'Synology', name: 'NAS-01' })?.key).toBe('synology');
   });
 });

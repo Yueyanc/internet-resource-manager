@@ -47,6 +47,8 @@ describe('subscriptionPresets', () => {
     expect(resolvePreset({ presetKey: 'bilibili', name: '大号会员' })?.key).toBe('bilibili');
     expect(resolvePreset({ presetKey: '', name: 'ChatGPT Plus' })?.key).toBe('chatgpt');
     expect(resolvePreset({ presetKey: '', name: 'Spotify Premium' })?.key).toBe('spotify');
+    expect(resolvePreset({ presetKey: '', name: 'AlphaVPS 1TB Storage' })?.key).toBe('alphavps');
+    expect(filterPresets('alphavps', 'popular').map(item => item.key)).toContain('alphavps');
     expect(resolvePreset({ presetKey: '', name: 'Internal Custom Service' })).toBeUndefined();
     expect(findPreset('qq_music')?.name.zh).toBe('QQ 音乐');
   });
