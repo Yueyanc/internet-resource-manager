@@ -58,7 +58,7 @@ func TestHTTPCloudflareClientVerifyAndFetchSnapshot(t *testing.T) {
 				"success":true,
 				"result":[{
 					"id":"zone_1",
-					"name":"yueyanc.cn",
+					"name":"example.cn",
 					"status":"active",
 					"paused":false,
 					"name_servers":["ada.ns.cloudflare.com","bob.ns.cloudflare.com"],
@@ -72,13 +72,13 @@ func TestHTTPCloudflareClientVerifyAndFetchSnapshot(t *testing.T) {
 		case "/accounts/acc_1/cfd_tunnel":
 			_, _ = w.Write([]byte(`{"success":true,"result":[{"id":"tun_1","name":"homelab","status":"healthy"}]}`))
 		case "/accounts/acc_1/cfd_tunnel/tun_1/configurations":
-			_, _ = w.Write([]byte(`{"success":true,"result":{"config":{"ingress":[{"hostname":"nas.yueyanc.cn","service":"http://127.0.0.1:5000"},{"service":"http_status:404"}]}}}`))
+			_, _ = w.Write([]byte(`{"success":true,"result":{"config":{"ingress":[{"hostname":"nas.example.cn","service":"http://127.0.0.1:5000"},{"service":"http_status:404"}]}}}`))
 		case "/accounts/acc_1/pages/projects":
-			_, _ = w.Write([]byte(`{"success":true,"result":[{"name":"blog","subdomain":"blog.pages.dev","domains":["blog.yueyanc.cn"]}]}`))
+			_, _ = w.Write([]byte(`{"success":true,"result":[{"name":"blog","subdomain":"blog.pages.dev","domains":["blog.example.cn"]}]}`))
 		case "/zones/zone_1/dns_records":
 			_, _ = w.Write([]byte(`{"success":true,"result":[
-				{"id":"r1","type":"A","name":"irm.yueyanc.cn","content":"203.0.113.10","proxied":true,"ttl":1},
-				{"id":"r2","type":"CNAME","name":"nas.yueyanc.cn","content":"tun_1.cfargotunnel.com","proxied":true,"ttl":1}
+				{"id":"r1","type":"A","name":"irm.example.cn","content":"203.0.113.10","proxied":true,"ttl":1},
+				{"id":"r2","type":"CNAME","name":"nas.example.cn","content":"tun_1.cfargotunnel.com","proxied":true,"ttl":1}
 			]}`))
 		case "/zones/zone_1/workers/routes":
 			_, _ = w.Write([]byte(`{"success":true,"result":[]}`))
@@ -101,7 +101,7 @@ func TestHTTPCloudflareClientVerifyAndFetchSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchSnapshot error: %v", err)
 	}
-	if len(snap.Zones) != 1 || len(snap.Zones[0].Records) != 2 || len(snap.Tunnels) != 1 || snap.Tunnels[0].Hostname != "nas.yueyanc.cn" || len(snap.Pages) != 1 {
+	if len(snap.Zones) != 1 || len(snap.Zones[0].Records) != 2 || len(snap.Tunnels) != 1 || snap.Tunnels[0].Hostname != "nas.example.cn" || len(snap.Pages) != 1 {
 		t.Fatalf("unexpected snapshot: %+v", snap)
 	}
 }

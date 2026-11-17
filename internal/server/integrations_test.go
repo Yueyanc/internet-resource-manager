@@ -60,8 +60,8 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 
 	lookuper := fakeDomainLookuper{
 		results: map[string]domainname.LookupResult{
-			"yueyanc.cn": {
-				ApexDomain:  "yueyanc.cn",
+			"example.cn": {
+				ApexDomain:  "example.cn",
 				Registrar:   "阿里云万网",
 				DNSProvider: "Cloudflare",
 				PresetKey:   "aliyun",
@@ -96,7 +96,7 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 					ID:       "tun-1",
 					Name:     "homelab-edge",
 					Status:   "healthy",
-					Hostname: "nas.yueyanc.cn",
+					Hostname: "nas.example.cn",
 					Service:  "http://127.0.0.1:8080",
 				},
 			},
@@ -104,13 +104,13 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 				{
 					Name:      "blog-pages",
 					Subdomain: "blog-pages.pages.dev",
-					Domains:   []string{"blog.yueyanc.cn"},
+					Domains:   []string{"blog.example.cn"},
 				},
 			},
 			Zones: []cloudsync.ZoneSnapshot{
 				{
 					ZoneID:      "zone-cn-1",
-					Name:        "yueyanc.cn",
+					Name:        "example.cn",
 					Status:      "active",
 					PlanName:    "Free Website",
 					AccountName: "Yueyan's Account",
@@ -119,7 +119,7 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 						{
 							ID:      "rec-a",
 							Type:    "A",
-							Name:    "irm.yueyanc.cn",
+							Name:    "irm.example.cn",
 							Content: "203.0.113.42",
 							Proxied: true,
 							TTL:     1,
@@ -127,13 +127,13 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 						{
 							ID:      "rec-cname",
 							Type:    "CNAME",
-							Name:    "app.yueyanc.cn",
+							Name:    "app.example.cn",
 							Content: "alpha.node.example.net",
 							Proxied: false,
 							TTL:     300,
 						},
 					},
-					WorkerRoutes: []string{"api.yueyanc.cn/*"},
+					WorkerRoutes: []string{"api.example.cn/*"},
 				},
 				{
 					ZoneID:      "zone-dev-2",
@@ -175,7 +175,7 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 	}
 	sessionCookie = setup.Result().Cookies()[0]
 
-	// 1. Seed a server and an IP that match the DNS records in yueyanc.cn.
+	// 1. Seed a server and an IP that match the DNS records in example.cn.
 	srvRec := doReq(http.MethodPost, "/api/v1/servers", `{
 		"name":"Alpha Node","hostname":"alpha.node.example.net"
 	}`)
@@ -199,7 +199,7 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 	_ = json.Unmarshal(ipRec.Body.Bytes(), &createdIP)
 
 	// 2. Test RDAP/WHOIS preview endpoint before saving any domain.
-	previewRec := doReq(http.MethodPost, "/api/v1/domains/lookup-preview", `{"name":"sub.yueyanc.cn"}`)
+	previewRec := doReq(http.MethodPost, "/api/v1/domains/lookup-preview", `{"name":"sub.example.cn"}`)
 	if previewRec.Code != http.StatusOK {
 		t.Fatalf("lookup-preview = %d: %s", previewRec.Code, previewRec.Body)
 	}
@@ -282,15 +282,15 @@ func TestCloudflareSyncAndDomainLookupEndToEnd(t *testing.T) {
 		byName[item.Name] = idx
 	}
 
-	cn := listPayload.Items[byName["yueyanc.cn"]]
+	cn := listPayload.Items[byName["example.cn"]]
 	if cn.Registrar != "阿里云万网" || cn.ExpireDate != "2027-08-19" || cn.DNSProvider != "Cloudflare DNS" {
-		t.Fatalf("yueyanc.cn WHOIS + CF enrichment mismatch: %+v", cn)
+		t.Fatalf("example.cn WHOIS + CF enrichment mismatch: %+v", cn)
 	}
 	if !slices.Contains(cn.ServerIDs, createdSrv.ID) || !slices.Contains(cn.IPIDs, createdIP.ID) {
 		t.Fatalf("expected auto-linked server %s and ip %s, got servers=%v ips=%v", createdSrv.ID, createdIP.ID, cn.ServerIDs, cn.IPIDs)
 	}
 	if cn.EdgeMeta == nil || len(cn.EdgeMeta.Tunnels) != 1 || len(cn.EdgeMeta.PagesProjects) != 1 {
-		t.Fatalf("expected tunnel and pages metadata on yueyanc.cn, got %+v", cn.EdgeMeta)
+		t.Fatalf("expected tunnel and pages metadata on example.cn, got %+v", cn.EdgeMeta)
 	}
 
 	dev := listPayload.Items[byName["cfreg.dev"]]

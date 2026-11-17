@@ -1,0 +1,162 @@
+Internet Resource Manager Dual-Licensing Notice
+Copyright (c) 2026 Yueyanc (https://github.com/Yueyanc). All rights reserved.
+
+================================================================================
+LICENSING SUMMARY / 许可协议摘要（个人免费 · 商用需购买商业许可证）
+================================================================================
+
+This software ("Internet Resource Manager") is dual-licensed:
+
+1. Personal & Noncommercial Free License（个人与非商业免费许可）
+   Individuals, students, and non-profit academic/research users may freely use,
+   copy, modify, self-host, and redistribute this software strictly for personal
+   or noncommercial purposes under the terms of the PolyForm Noncommercial
+   License 1.0.0 set forth below, provided that copyright and license notices
+   are preserved.
+
+   个人用户、独立学习者及非营利性学术研究机构，可在严格限于「个人自用或非商业用途」
+   的前提下，免费自由地使用、自托管部署、修改和分发本软件（须保留版权与本许可声明，
+   具体条款适用下方 PolyForm Noncommercial License 1.0.0）。
+
+2. Commercial License Required（商业用途须购买商业许可证）
+   ANY commercial use of this software (or derivative works) is strictly
+   PROHIBITED without first purchasing a separate written Commercial License
+   from the copyright holder. Commercial use includes, without limitation:
+   - Selling, sublicensing, renting, or charging any fee for the software or
+     derivatives;
+   - Operating or offering the software as a commercial/paid SaaS, multi-tenant
+     cloud platform, or paid managed hosting/deployment service;
+   - Bundling, embedding, or delivering the software as part of commercial
+     products, hardware appliances, or paid consulting/outsourcing services;
+   - Internal deployment, operations, asset management, or production use within
+     any for-profit company, corporation, studio, or commercial entity.
+
+   未经版权持有人书面商业授权并支付许可费用，严禁将本软件（或其修改版、衍生作品）
+   用于任何商业用途。商业用途包括但不限于：
+   - 直接或间接售卖、出租本软件或其衍生版本，或以此收取任何服务费/会员费；
+   - 基于本软件对外提供付费或商业化的 SaaS 云服务、代部署、代运维或托管服务；
+   - 将本软件集成、打包至商业软硬件产品或有偿技术服务/外包项目中交付给客户；
+   - 在任何营利性公司、企业、工作室或商业组织内部用于日常办公、资产管理或生产经营。
+
+   To purchase a Commercial License, please contact the copyright holder via:
+   如需购买商业使用许可证，请联系版权持有人：
+   https://github.com/Yueyanc/internet-resource-manager
+
+================================================================================
+PolyForm Noncommercial License 1.0.0
+https://polyformproject.org/licenses/noncommercial/1.0.0
+================================================================================
+
+Acceptance
+
+In order to get any license under these terms, you must agree to them as both
+strict obligations and conditions to all your licenses.
+
+Copyright License
+
+The licensor grants you a copyright license for the software to do everything
+you might do with the software that would otherwise infringe the licensor's
+copyright in it for any permitted purpose. However, you may only distribute the
+software according to Distribution License and make changes or new works based
+on the software according to Changes and New Works License.
+
+Distribution License
+
+The licensor grants you an additional copyright license to distribute copies of
+the software. Your license to distribute covers distributing the software with
+changes and new works permitted by Changes and New Works License.
+
+Notices
+
+You must ensure that anyone who gets a copy of any part of the software from
+you also gets a copy of these terms or the URL for them above, as well as
+copies of any plain-text lines beginning with `Required Notice:` that the
+licensor provided with the software. For example:
+
+  Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+Changes and New Works License
+
+The licensor grants you an additional copyright license to make changes and new
+works based on the software for any permitted purpose.
+
+Patent License
+
+The licensor grants you a patent license for the software that covers patent
+claims the licensor can license, or becomes able to license, that you would
+infringe by using the software.
+
+Noncommercial Purposes Only
+
+Any use of the software for commercial purposes is prohibited. This includes,
+without limitation, use in a commercial business, use for fee or other
+compensation, use to provide commercial services to third parties, and
+distribution for a fee.
+
+Personal Uses
+
+Personal use for research, experiment, and testing for the benefit of public
+knowledge, personal study, private entertainment, hobby projects, amateur
+pursuits, or religious observance, without any anticipated commercial
+application, is use for a permitted purpose.
+
+Noncommercial Organizations
+
+Use by any charitable organization, educational institution, public research
+organization, public safety or health organization, environmental protection
+organization, or government institution is use for a permitted purpose
+regardless of the source of funding or obligations resulting from the funding.
+
+Fair Use
+
+You may have "fair use" rights for the software under the law. These terms do
+not limit them.
+
+No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to
+anyone else, or prevent the licensor from granting licenses to anyone else.
+These terms do not imply any other licenses.
+
+Patent Defense
+
+If you make any written claim that the software infringes or contributes to
+infringement of any patent, your patent license for the software granted under
+these terms ends immediately. If your company makes such a claim, your patent
+license ends immediately for work on behalf of your company.
+
+Violations
+
+The first time you are notified in writing that you have violated any of these
+terms, or done anything with the software not covered by your licenses, your
+licenses can nonetheless continue if you come into full compliance with these
+terms, and take practical steps to correct past violations, within 32 days of
+receiving notice. Otherwise, all your licenses end immediately.
+
+No Liability
+
+***As far as the law allows, the software comes as is, without any warranty or
+condition, and the licensor will not be liable to you for any damages arising
+out of these terms or the use or nature of the software, under any kind of
+legal claim.***
+
+Definitions
+
+The **licensor** is the individual or entity offering these terms, and the
+**software** is the software the licensor makes available under these terms.
+
+**You** refers to the individual or entity agreeing to these terms.
+
+**Your company** is any legal entity, sole proprietorship, or other kind of
+organization that you work for, plus all organizations that have control over,
+are under the control of, or are under common control with that organization.
+**Control** means ownership of substantially all the assets of an entity, or the
+power to direct its management and policies by vote, contract, or otherwise.
+Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the software under
+these terms.
+
+**Use** means anything you do with the software requiring one of your licenses.
+
+Required Notice: Copyright (c) 2026 Yueyanc (https://github.com/Yueyanc/internet-resource-manager)
