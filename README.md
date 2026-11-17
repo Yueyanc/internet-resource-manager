@@ -107,7 +107,7 @@ E2E 使用独立端口 5183/8887，每次创建 `data/e2e/<运行时间>` 空库
 `.env.example` 是说明模板，Go 不会自动加载 `.env`。通过终端环境或 Compose
 注入变量，不把密钥加入 Vite 的 `VITE_*` 环境变量。
 
-## 容器运行与 CI/CD 自动部署
+## 容器运行与 CI/CD 自动发布
 
 本机容器运行：
 
@@ -123,7 +123,7 @@ docker compose -f deploy/compose.yaml up --build -d
 CI/CD 流水线（GitHub Actions）：
 
 - `.github/workflows/ci.yaml`：`main` 推送与 PR 自动执行 `pnpm check`、`sqlc` 漂移校验、`pnpm build`、Playwright E2E 与 Docker 构建验证。
-- `.github/workflows/deploy-alpha.yaml`：当在 `main` 分支打 `v*` 标签并推送时，自动校验该标签归属 `main` 分支、执行质量门禁、构建发布 `irm-release-linux-{amd64,arm64}.tar.gz` + `checksums.txt` 至 GitHub Releases、推送 GHCR 镜像，并通过 SSH 滚动部署至 Alpha 服务器（`deploy/compose.alpha.yaml`）。
+- `.github/workflows/release.yaml`：推送 `v*` 语义化版本标签（如 `v0.1.12`）或手动触发时，自动执行质量门禁、构建并上传 `irm-release-linux-{amd64,arm64}.tar.gz` + `checksums.txt` 至 GitHub Releases，同时推送容器镜像至 GHCR（`ghcr.io/yueyanc/internet-resource-manager:<tag>` 与 `:latest`），不再通过 SSH 自动部署服务器。
 
 备份当前 SQLite 时应先停止服务再复制数据库文件，或使用 SQLite 一致性备份
 接口，不能只在运行时随意复制主文件而忽略 WAL。不要把数据库或主密钥推送到 GitHub。

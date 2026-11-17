@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to release (e.g. v0.1.12)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release tag
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid release tag '${TAG}'. Expected vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          PRERELEASE="false"
+          if [[ "$TAG" == *-* ]]; then
+            PRERELEASE="true"
+          fi
+          IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "image_repo=${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tag
+        uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ steps.meta.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run quality gate
+        run: |
+          pnpm install --frozen-lockfile
+          go mod download
+          pnpm check
+          pnpm db:generate
+          git diff --exit-code -- internal/storage/queries
+
+      - name: Build and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          IS_PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @irm/web build
+          mkdir -p .release/agent-dist .release/out
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o .release/agent-dist/irm-agent-linux-amd64 ./apps/agent
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o .release/agent-dist/irm-agent-linux-arm64 ./apps/agent
+
+          for ARCH in amd64 arm64; do
+            STAGE=".release/stage-${ARCH}"
+            mkdir -p "${STAGE}/dist"
+            CGO_ENABLED=0 GOOS=linux GOARCH="${ARCH}" go build -trimpath \
+              -ldflags="-s -w -X main.version=${RELEASE_TAG} -X main.buildType=release" \
+              -o "${STAGE}/server" ./apps/server
+            cp .release/agent-dist/irm-agent-linux-* "${STAGE}/dist/"
+            tar -C "${STAGE}" -czf ".release/out/irm-release-linux-${ARCH}.tar.gz" server dist
+          done
+
+          (
+            cd .release/out
+            sha256sum irm-release-linux-amd64.tar.gz irm-release-linux-arm64.tar.gz > checksums.txt
+          )
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" .release/out/* --clobber
+          else
+            CREATE_ARGS=(--verify-tag --title "${RELEASE_TAG}" --generate-notes)
+            if [[ "${IS_PRERELEASE}" == "true" ]]; then
+              CREATE_ARGS+=(--prerelease)
+            fi
+            gh release create "${RELEASE_TAG}" .release/out/* "${CREATE_ARGS[@]}"
+          fi
+          rm -rf .release
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push container image
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          IS_PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          IMAGE_REPO: ${{ steps.meta.outputs.image_repo }}
+        run: |
+          BUILD_TAGS=(-t "${IMAGE_REPO}:${RELEASE_TAG}")
+          if [[ "${IS_PRERELEASE}" != "true" ]]; then
+            BUILD_TAGS+=(-t "${IMAGE_REPO}:latest")
+          fi
+          docker build \
+            -f deploy/Dockerfile \
+            --build-arg "VERSION=${RELEASE_TAG}" \
+            "${BUILD_TAGS[@]}" \
+            .
+          docker push "${IMAGE_REPO}:${RELEASE_TAG}"
+          if [[ "${IS_PRERELEASE}" != "true" ]]; then
+            docker push "${IMAGE_REPO}:latest"
+          fi

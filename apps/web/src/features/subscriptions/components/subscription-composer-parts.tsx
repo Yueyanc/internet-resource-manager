@@ -278,6 +278,25 @@ export function SubscriptionPropertySheet({
   const explicitPreset = findPreset(presetKey);
   const resolvedPreset = explicitPreset
     ?? (watchedName.trim() ? resolvePreset({ presetKey: '', name: watchedName }) : undefined);
+  const activePreset = explicitPreset ?? resolvedPreset;
+
+  const effectivePlanId = useMemo(() => {
+    if (planId && activePreset?.plans.some(p => p.id === planId)) {
+      return planId;
+    }
+    if (!activePreset) return '';
+    const trimmedName = watchedName.trim();
+    const byNameAndCycle = activePreset.plans.find(
+      p => (p.itemName.zh === trimmedName || p.itemName.en === trimmedName)
+        && p.currency === watchedCurrency
+        && p.cycle === watchedCycle,
+    );
+    if (byNameAndCycle) return byNameAndCycle.id;
+    const byName = activePreset.plans.find(
+      p => p.itemName.zh === trimmedName || p.itemName.en === trimmedName,
+    );
+    return byName?.id ?? '';
+  }, [planId, activePreset, watchedName, watchedCurrency, watchedCycle]);
 
   const amountInputWidth = useMemo(() => {
     const displayed = editingAmountText ?? (rawAmount === null || rawAmount === undefined ? '' : String(rawAmount));
@@ -449,20 +468,29 @@ export function SubscriptionPropertySheet({
                 {t('点击更换预设或直接输入名称')}
               </button>
 
-              {explicitPreset && explicitPreset.plans.length > 1 && onSelectPlan && (
+              {activePreset && activePreset.plans.length > 1 && onSelectPlan && (
                 <Dropdown
                   trigger={['click']}
                   menu={{
-                    selectedKeys: planId ? [planId] : [],
-                    items: explicitPreset.plans.map(plan => ({
-                      key: plan.id,
-                      label: locale === 'en-US' ? plan.label.en : plan.label.zh,
-                    })),
+                    selectedKeys: effectivePlanId ? [effectivePlanId] : [],
+                    items: activePreset.plans.map((plan) => {
+                      const planLabel = locale === 'en-US' ? plan.label.en : plan.label.zh;
+                      const defaultName = locale === 'en-US' ? plan.itemName.en : plan.itemName.zh;
+                      return {
+                        key: plan.id,
+                        label: (
+                          <span className="flex items-center justify-between gap-4">
+                            <span>{planLabel}</span>
+                            <small className="text-[11px] opacity-55">{defaultName}</small>
+                          </span>
+                        ),
+                      };
+                    }),
                     onClick: ({ key }) => {
-                      const found = explicitPreset.plans.find(p => p.id === key);
+                      const found = activePreset.plans.find(p => p.id === key);
                       if (found) {
                         setEditingAmountText(null);
-                        onSelectPlan(explicitPreset, found);
+                        onSelectPlan(activePreset, found);
                       }
                     },
                   }}

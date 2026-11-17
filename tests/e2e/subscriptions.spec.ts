@@ -45,8 +45,20 @@ test('create subscription with separated searchable service & billing account dr
   await page.getByLabel('搜索预设服务').fill('chatgpt');
   await page.locator('.preset-popover-item').filter({ hasText: 'ChatGPT' }).click();
 
-  await expect(modal.getByRole('button', { name: '币种' })).toHaveText('US$');
+  const nameInput = modal.getByLabel('订阅名称');
   const amountInput = modal.getByLabel('金额');
+  await expect(nameInput).toHaveValue('ChatGPT Plus');
+  await expect(modal.getByRole('button', { name: '币种' })).toHaveText('US$');
+  await expect(amountInput).toHaveValue('20');
+
+  await modal.getByRole('button', { name: '切换套餐' }).click();
+  await page.getByRole('menuitem').filter({ hasText: 'Pro 100' }).click();
+  await expect(nameInput).toHaveValue('ChatGPT Pro 100');
+  await expect(amountInput).toHaveValue('100');
+
+  await modal.getByRole('button', { name: '切换套餐' }).click();
+  await page.getByRole('menuitem').filter({ hasText: 'Plus · $20/月' }).click();
+  await expect(nameInput).toHaveValue('ChatGPT Plus');
   await expect(amountInput).toHaveValue('20');
   const amountMetrics = await amountInput.evaluate((el: HTMLInputElement) => ({
     clientWidth: el.clientWidth,
