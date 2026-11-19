@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	Categories         = []string{"email", "social", "ecosystem", "dev_cloud", "ai_productivity", "media_gaming", "finance_commerce", "other"}
+	Categories         = []string{"email", "social", "ecosystem", "dev_cloud", "ai_productivity", "api_platform", "media_gaming", "finance_commerce", "other"}
 	Ecosystems         = []string{"domestic", "overseas"}
 	Roles              = []string{"hub", "primary", "alt"}
 	Statuses           = []string{"active", "retiring", "restricted"}

@@ -27,6 +27,16 @@ func TestValidateAndAdvanceCheckin(t *testing.T) {
 		t.Fatalf("unexpected normalized fields: %+v", valid)
 	}
 
+	apiHub := valid
+	apiHub.PresetKey = "tikhub"
+	apiHub.Platform = "TikHub"
+	apiHub.Category = "api_platform"
+	apiHub.Region = "GLOBAL"
+	apiHub.SecurityURL = "https://user.tikhub.io/"
+	if err := apiHub.Validate(); err != nil {
+		t.Fatalf("expected api_platform input to validate, got %v", err)
+	}
+
 	idLeak := valid
 	idLeak.KycStatus = "verified"
 	idLeak.KycNote = "110101199001011234"

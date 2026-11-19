@@ -120,7 +120,7 @@ function AccountPresetPopover({
               autoFocus
               aria-label={t('搜索平台预设')}
               prefix={<Search size={14} className="text-gray-400" />}
-              placeholder={t('搜索预设，如 微信、Gmail、小红书、Apple、Telegram...')}
+              placeholder={t('搜索预设，如 微信、Gmail、TikHub、OpenRouter、Apple...')}
               value={query}
               onChange={event => setQuery(event.target.value)}
             />

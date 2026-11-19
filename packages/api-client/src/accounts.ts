@@ -9,6 +9,7 @@ export const accountCategories = [
   'ecosystem',
   'dev_cloud',
   'ai_productivity',
+  'api_platform',
   'media_gaming',
   'finance_commerce',
   'other',

@@ -7,6 +7,7 @@ export const accountCategoryMeta = {
   ecosystem: { label: '生态通行证与商店', short: '通行证', color: '#6366f1' },
   dev_cloud: { label: '开发者、云与网络', short: '开发与云', color: '#3b82f6' },
   ai_productivity: { label: 'AI 与效率工具', short: 'AI 工具', color: '#059669' },
+  api_platform: { label: 'API 聚合与中转平台', short: 'API 平台', color: '#0891b2' },
   media_gaming: { label: '影音阅读与游戏', short: '影音游戏', color: '#8b5cf6' },
   finance_commerce: { label: '电商、支付与生活', short: '电商支付', color: '#d97706' },
   other: { label: '社区论坛与其他', short: '社区其他', color: '#64748b' },

@@ -33,13 +33,24 @@ describe('accountPresets', () => {
     expect(filterAccountPresets('gv', 'popular').map(item => item.key)).toContain('google_voice');
     expect(filterAccountPresets('美区', 'popular').map(item => item.key)).toContain('apple');
     expect(filterAccountPresets('163', 'popular').map(item => item.key)).toContain('netease_mail');
+    expect(filterAccountPresets('tikhub', 'popular').map(item => item.key)).toContain('tikhub');
+    expect(filterAccountPresets('社媒数据', 'popular').map(item => item.key)).toContain('tikhub');
+    expect(filterAccountPresets('中转', 'popular').map(item => item.key)).toContain('new_api');
+    expect(filterAccountPresets('', 'api_platform').map(item => item.key)).toEqual(
+      expect.arrayContaining(['tikhub', 'openrouter', 'siliconflow', 'ai_302', 'rapidapi', 'new_api']),
+    );
   });
 
   it('resolves explicit preset keys first and falls back to recognizable platform names', () => {
     expect(resolveAccountPreset({ presetKey: 'wechat', platform: '主力通讯' })?.key).toBe('wechat');
     expect(resolveAccountPreset({ presetKey: '', platform: 'Apple ID' })?.key).toBe('apple');
     expect(resolveAccountPreset({ presetKey: '', platform: 'Proton Mail' })?.key).toBe('proton');
+    expect(resolveAccountPreset({ presetKey: '', platform: 'TikHub 爬虫主力' })?.key).toBe('tikhub');
+    expect(resolveAccountPreset({ presetKey: '', platform: 'OpenRouter' })?.key).toBe('openrouter');
+    expect(resolveAccountPreset({ presetKey: '', platform: '硅基流动' })?.key).toBe('siliconflow');
+    expect(resolveAccountPreset({ presetKey: '', platform: 'One API 公益站' })?.key).toBe('new_api');
     expect(resolveAccountPreset({ presetKey: '', platform: 'Private Intranet SSO' })).toBeUndefined();
     expect(findAccountPreset('gmail')?.platform.zh).toBe('Gmail');
+    expect(findAccountPreset('tikhub')?.category).toBe('api_platform');
   });
 });

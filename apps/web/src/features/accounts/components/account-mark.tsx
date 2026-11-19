@@ -1,5 +1,5 @@
 import type { Account } from '@irm/api-client';
-import { CircleUserRound, Code2, Compass, Gamepad2, Landmark, Mail, MessageCircle, Sparkles } from 'lucide-react';
+import { CircleUserRound, Code2, Compass, Gamepad2, Landmark, Mail, MessageCircle, Sparkles, Webhook } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
 import { brandIconUrl } from '../../../shared/brand-icons';
@@ -13,6 +13,7 @@ const categoryIcons = {
   ecosystem: CircleUserRound,
   dev_cloud: Code2,
   ai_productivity: Sparkles,
+  api_platform: Webhook,
   media_gaming: Gamepad2,
   finance_commerce: Landmark,
   other: Compass,
